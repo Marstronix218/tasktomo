@@ -56,7 +56,7 @@ export default function PremiumFeatures({ userPlan, onUpgrade }: PremiumFeatures
 
   return (
     <div className="space-y-6">
-      <Card className="bg-gray-800 border-gray-700">
+      <Card className="bg-gray-800 border-gray-700 text-white">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <Crown className="w-5 h-5 text-yellow-400" />

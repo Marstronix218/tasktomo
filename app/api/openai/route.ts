@@ -21,19 +21,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Default model is configurable via the OPENAI_MODEL env var (falls back to gpt-5-mini).
+    // A model explicitly passed in the request body still takes precedence.
+    const model = body.model || process.env.OPENAI_MODEL || "gpt-5-mini"
+    const maxTokens = body.max_tokens || 150
+    const temperature = body.temperature ?? 0.8
+
+    // The gpt-5 / o-series reasoning models reject the legacy `max_tokens` param and only
+    // accept the default temperature, so build the payload accordingly.
+    const isReasoningModel = /^(gpt-5|o\d)/.test(model)
+    const payload: Record<string, unknown> = {
+      model,
+      messages: body.messages,
+      stream: false,
+    }
+    if (isReasoningModel) {
+      payload.max_completion_tokens = maxTokens
+    } else {
+      payload.max_tokens = maxTokens
+      payload.temperature = temperature
+    }
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: body.model || "gpt-4.1-nano",
-        messages: body.messages,
-        max_tokens: body.max_tokens || 150,
-        temperature: body.temperature || 0.8,
-        stream: false,
-      }),
+      body: JSON.stringify(payload),
     })
 
     if (!response.ok) {

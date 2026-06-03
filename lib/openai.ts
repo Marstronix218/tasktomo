@@ -28,7 +28,9 @@ export async function callOpenAI(
       },
       body: JSON.stringify({
         messages,
-        model: options.model || 'gpt-4o-mini',
+        // Only forward a model when the caller explicitly asks for one; otherwise let the
+        // server route apply the OPENAI_MODEL env default.
+        ...(options.model ? { model: options.model } : {}),
         max_tokens: options.maxTokens || 150,
         temperature: options.temperature || 0.8,
       }),

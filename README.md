@@ -21,7 +21,7 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
 - [React](https://react.dev/) 19
 - [Tailwind CSS](https://tailwindcss.com/)
 - [OpenAI API](https://platform.openai.com/docs/api-reference)
-- [Supabase](https://supabase.com/) (planned for future features)
+- [Supabase](https://supabase.com/) (used for user data sync)
 
 ## Getting Started
 
@@ -47,7 +47,7 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
    # Required for AI chat
    OPENAI_API_KEY=your_openai_api_key
 
-   # (Optional, for future Supabase integration)
+   # Required for data sync
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
@@ -59,6 +59,7 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
+- Sign up or sign in on `/login`.
 - Add, complete, and manage your daily tasks.
 - Select and chat with AI companions for motivation and advice.
 - Track your XP, streaks, and bond levels.
@@ -72,10 +73,11 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
 
 ## Environment Variables
 - `OPENAI_API_KEY` (required): Your OpenAI API key for AI chat functionality.
-- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (optional): For future Supabase integration.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (required): For Supabase user data sync.
 
 ## Notes
-- **Supabase integration is planned for future features (user accounts, cloud sync, etc.) and is not required for basic local development.**
+- Apply the SQL in `supabase/schema.sql` to your Supabase project before running the app.
+- The dashboard route (`/`) requires an authenticated Supabase session.
 - All AI chat features require a valid OpenAI API key.
 - Some features (Premium, account management) are simulated in the current version.
 

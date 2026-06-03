@@ -72,7 +72,7 @@ export default function UserProfile({
 
       <div className="max-w-2xl space-y-6">
         {/* Profile Information */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-gray-800 border-gray-700 text-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
               <User className="w-5 h-5" />
@@ -124,7 +124,7 @@ export default function UserProfile({
         </Card>
 
         {/* Subscription Management */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-gray-800 border-gray-700 text-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
               <CreditCard className="w-5 h-5" />
@@ -174,7 +174,7 @@ export default function UserProfile({
         </Card>
 
         {/* Send Feedback */}
-        <Card className="bg-gray-800 border-gray-700">
+        <Card className="bg-gray-800 border-gray-700 text-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-white">
               <MessageSquare className="w-5 h-5" />
@@ -200,7 +200,7 @@ export default function UserProfile({
         </Card>
 
         {/* Danger Zone */}
-        <Card className="bg-gray-800 border-red-500/50">
+        <Card className="bg-gray-800 border-red-500/50 text-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-red-400">
               <UserX className="w-5 h-5" />
