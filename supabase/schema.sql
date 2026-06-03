@@ -16,8 +16,24 @@ create table if not exists public.user_profiles (
   last_login text,
   last_checkin_time bigint,
   custom_character jsonb,
+  daily_quests jsonb not null default '[]'::jsonb,
+  streak_freezes integer not null default 1,
+  focus_minutes_total integer not null default 0,
+  onboarded boolean not null default false,
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  plan_renews_at timestamptz,
   updated_at timestamptz not null default timezone('utc'::text, now())
 );
+
+-- Idempotent column adds for existing installations.
+alter table public.user_profiles add column if not exists daily_quests jsonb not null default '[]'::jsonb;
+alter table public.user_profiles add column if not exists streak_freezes integer not null default 1;
+alter table public.user_profiles add column if not exists focus_minutes_total integer not null default 0;
+alter table public.user_profiles add column if not exists onboarded boolean not null default false;
+alter table public.user_profiles add column if not exists stripe_customer_id text;
+alter table public.user_profiles add column if not exists stripe_subscription_id text;
+alter table public.user_profiles add column if not exists plan_renews_at timestamptz;
 
 create or replace function public.set_user_profiles_updated_at()
 returns trigger

@@ -156,7 +156,7 @@ export default function CharacterSelection({
 
       {/* Custom Character Creation */}
       {showCustomCharacter && userPlan === "Premium" && (
-        <Card className="bg-gray-800 border-gray-700 mb-6">
+        <Card className="bg-gray-800 border-gray-700 text-white mb-6">
           <CardHeader>
             <CardTitle className="text-white">Create Custom Character</CardTitle>
           </CardHeader>
@@ -236,7 +236,7 @@ export default function CharacterSelection({
           return (
             <Card
               key={character.id}
-              className={`bg-gray-800 border-gray-700 cursor-pointer transition-all hover:scale-105 ${
+              className={`bg-gray-800 border-gray-700 text-white cursor-pointer transition-all hover:scale-105 ${
                 isSelected ? "ring-2 ring-purple-500 bg-gray-700" : ""
               }`}
               onClick={() => toggleCharacter(character)}

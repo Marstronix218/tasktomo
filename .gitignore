@@ -151,3 +151,7 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Coding Tools
+CLAUDE.md
+claudework.md

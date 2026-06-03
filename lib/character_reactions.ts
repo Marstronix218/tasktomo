@@ -1,19 +1,7 @@
 import type { TaskData } from "./supabase"
+import type { Character } from "./types"
 
-export interface Character {
-  id: number
-  name: string
-  avatar: string
-  level: number
-  personality: string
-  description: string
-  bondLevel: number
-  maxBond: number
-  prompt: string
-  lastMessage?: string
-  xp: number
-  tasksCompleted: number
-}
+export type { Character }
 
 export function getTaskCompletionMessage(character: Character, task: TaskData): string {
   const { name, personality } = character
