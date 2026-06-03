@@ -2,6 +2,16 @@
 
 TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your daily productivity with the help of unique AI characters, each with their own personalities, motivational styles, and interactive chat features. Track your tasks, earn XP, build streaks, and form bonds with your favorite companions!
 
+## Screenshots
+
+### Landing page
+
+![TaskCrewAI landing page](public/screenshot-landing.png)
+
+### Dashboard
+
+![TaskCrewAI dashboard](public/screenshot-dashboard.png)
+
 ## Features
 
 - **Productivity Dashboard**: Manage your daily tasks, track completion, and earn XP.
@@ -77,7 +87,7 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
 
 ## Notes
 - Apply the SQL in `supabase/schema.sql` to your Supabase project before running the app.
-- The dashboard route (`/`) requires an authenticated Supabase session.
+- `/` is the public marketing landing page; the app itself lives at `/dashboard` and requires an authenticated Supabase session.
 - All AI chat features require a valid OpenAI API key.
 - Some features (Premium, account management) are simulated in the current version.
 
