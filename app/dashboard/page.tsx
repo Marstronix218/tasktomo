@@ -45,6 +45,9 @@ import FocusTimer from "@/components/focus-timer"
 import PremiumFeatures from "@/components/premium-features"
 import StreakBanner from "@/components/streak-banner"
 import UserProfilePanel from "@/components/user-profile"
+import CelebrationOverlay from "@/components/celebration-overlay"
+import DailyGoalRing from "@/components/daily-goal-ring"
+import UserLevelBadge from "@/components/user-level-badge"
 
 import { ALL_CHARACTERS, getAvailableCharacters, getMaxCompanions } from "@/lib/characters"
 import {
@@ -54,6 +57,10 @@ import {
   getTaskCompletionMessage,
 } from "@/lib/character_reactions"
 import { generateDailyQuests } from "@/lib/daily-quests"
+import { dailyGoalForLevel, userLevelForXp } from "@/lib/leveling"
+import { buildCelebrations, type Celebration } from "@/lib/celebrations"
+import { fireConfettiAt } from "@/lib/confetti"
+import { useSound } from "@/hooks/use-sound"
 import { diffDaysIso, hoursLeftInDay, todayIso } from "@/lib/date-utils"
 import {
   chatHistoryFromStored,
@@ -97,6 +104,16 @@ export default function Dashboard() {
   const [dailyQuests, setDailyQuests] = useState<DailyQuest[]>([])
   const [streakFreezes, setStreakFreezes] = useState(0)
   const [focusMinutesTotal, setFocusMinutesTotal] = useState(0)
+  const [xpToday, setXpToday] = useState(0)
+  const [xpTodayDate, setXpTodayDate] = useState(todayIso())
+  // Daily goal is frozen for the day (set at day-start from the level then) so a
+  // mid-day level-up can't move the target — which would otherwise re-fire the
+  // "goal reached" celebration and desync the ring.
+  const [dailyGoal, setDailyGoal] = useState(50)
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [celebrationQueue, setCelebrationQueue] = useState<(Celebration & { key: number })[]>([])
+  const [floatingXp, setFloatingXp] = useState<{ id: number; xp: number } | null>(null)
+  const celebrationKeyRef = useRef(0)
 
   const [streakCount, setStreakCount] = useState(0)
   const [totalXP, setTotalXP] = useState(0)
@@ -127,6 +144,7 @@ export default function Dashboard() {
   })
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playSound = useSound(soundEnabled)
 
   useEffect(() => {
     const t = setInterval(() => forceTick((n) => n + 1), 60_000)
@@ -176,6 +194,16 @@ export default function Dashboard() {
       setStreakCount(profile.streak_count || 0)
       setStreakFreezes(profile.streak_freezes ?? 1)
       setFocusMinutesTotal(profile.focus_minutes_total || 0)
+      setSoundEnabled(profile.sound_enabled ?? true)
+      if (profile.xp_today_date === todayIso()) {
+        setXpToday(profile.xp_today || 0)
+        setXpTodayDate(profile.xp_today_date)
+        setDailyGoal(profile.daily_goal ?? dailyGoalForLevel(userLevelForXp(profile.total_xp || 0)))
+      } else {
+        setXpToday(0)
+        setXpTodayDate(todayIso())
+        setDailyGoal(dailyGoalForLevel(userLevelForXp(profile.total_xp || 0)))
+      }
       setLastTaskCheck(profile.last_task_check || todayIso())
       setLastLogin(profile.last_login || todayIso())
       setLastCheckinTime(profile.last_checkin_time || 0)
@@ -230,6 +258,10 @@ export default function Dashboard() {
         daily_quests: dailyQuestsToRecords(dailyQuests),
         streak_freezes: streakFreezes,
         focus_minutes_total: focusMinutesTotal,
+        xp_today: xpToday,
+        xp_today_date: xpTodayDate,
+        daily_goal: dailyGoal,
+        sound_enabled: soundEnabled,
         onboarded: true,
       }
       const ok = await upsertUserProfile(payload)
@@ -241,7 +273,7 @@ export default function Dashboard() {
   }, [
     isProfileLoaded, userId, userInfo, totalXP, streakCount, userCompanions,
     chatHistories, todos, lastTaskCheck, lastLogin, lastCheckinTime, dailyQuests,
-    streakFreezes, focusMinutesTotal,
+    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled,
   ])
 
   useEffect(() => {
@@ -272,6 +304,9 @@ export default function Dashboard() {
           : t,
       ),
     )
+    setXpToday(0)
+    setXpTodayDate(today)
+    setDailyGoal(dailyGoalForLevel(userLevelForXp(totalXP)))
     setDailyQuests(generateDailyQuests(today, userCompanions))
     setLastLogin(today)
   }, [isProfileLoaded, userCompanions])
@@ -348,12 +383,24 @@ export default function Dashboard() {
     xpGained: number,
     primaryCharacter?: Character,
   ) => {
-    setTotalXP((p) => p + xpGained)
     const today = todayIso()
+
+    const oldTotalXp = totalXP
+    const newTotalXp = totalXP + xpGained
+    setTotalXP(newTotalXp)
+
+    const oldStreak = streakCount
+    let newStreak = streakCount
     if (lastLogin !== today || completedToday === 0) {
-      setStreakCount((p) => p + 1)
+      newStreak = streakCount + 1
+      setStreakCount(newStreak)
     }
     setLastLogin(today)
+
+    const oldXpToday = xpTodayDate === today ? xpToday : 0
+    const newXpToday = oldXpToday + xpGained
+    setXpToday(newXpToday)
+    setXpTodayDate(today)
 
     const reactors = primaryCharacter ? [primaryCharacter] : userCompanions
     const reactorIds = new Set(reactors.map((r) => r.id))
@@ -361,11 +408,10 @@ export default function Dashboard() {
       reactors.map(async (c) => ({ c, msg: await generateAITaskMessage(c, taskText, category) })),
     )
 
-    // Compute companion updates and side-effect payloads up front. Keeping the side effects
-    // OUT of the setUserCompanions updater avoids duplicate messages when React invokes the
-    // updater twice (StrictMode in dev).
     const newSystemMessages: string[] = []
     const chatUpdates: { characterId: number; aiMsg: string }[] = []
+    const characterLevelUps: { character: Character; level: number }[] = []
+    const bondLevelUps: { character: Character; level: number }[] = []
 
     const updatedCompanions = userCompanions.map((c) => {
       if (!reactorIds.has(c.id)) return c
@@ -376,19 +422,31 @@ export default function Dashboard() {
       const newBond = Math.min(c.bondLevel + 0.1, c.maxBond)
       const bondLeveled = Math.floor(newBond) > Math.floor(c.bondLevel)
 
+      const updated = {
+        ...c,
+        xp: newXP,
+        level: newLevel,
+        tasksCompleted: newTasksCompleted,
+        bondLevel: newBond,
+        lastMessage: c.lastMessage,
+      }
+
       const aiMsg = messages.find((m) => m.c.id === c.id)?.msg
       if (aiMsg) {
         newSystemMessages.push(`${c.name}: ${aiMsg}`)
         chatUpdates.push({ characterId: c.id, aiMsg })
+        updated.lastMessage = aiMsg
       }
-      if (leveledUp) newSystemMessages.push(`${c.name}: ${getLevelUpMessage(c, newLevel)}`)
-      if (bondLeveled) newSystemMessages.push(`${c.name}: ${getBondLevelMessage(c, Math.floor(newBond))}`)
+      if (leveledUp) {
+        newSystemMessages.push(`${c.name}: ${getLevelUpMessage(c, newLevel)}`)
+        characterLevelUps.push({ character: updated, level: newLevel })
+      }
+      if (bondLeveled) {
+        newSystemMessages.push(`${c.name}: ${getBondLevelMessage(c, Math.floor(newBond))}`)
+        bondLevelUps.push({ character: updated, level: Math.floor(newBond) })
+      }
 
-      return {
-        ...c,
-        xp: newXP, level: newLevel, tasksCompleted: newTasksCompleted, bondLevel: newBond,
-        lastMessage: aiMsg || c.lastMessage,
-      }
+      return updated
     })
 
     setUserCompanions(updatedCompanions)
@@ -410,15 +468,40 @@ export default function Dashboard() {
         return next
       })
     }
+
+    const focusCharacter = primaryCharacter || reactors[0] || userCompanions[0]
+    const celebrations = buildCelebrations({
+      xpGained,
+      oldTotalXp,
+      newTotalXp,
+      oldStreak,
+      newStreak,
+      oldXpToday,
+      newXpToday,
+      dailyGoal,
+      focusCharacter,
+      characterLevelUps,
+      bondLevelUps,
+    })
+    if (celebrations.length > 0) {
+      setCelebrationQueue((prev) => [
+        ...prev,
+        ...celebrations.map((c) => ({ ...c, key: ++celebrationKeyRef.current })),
+      ])
+    }
   }
 
-  const toggleTodo = async (id: number) => {
+  const toggleTodo = async (id: number, checkboxEl?: HTMLElement | null) => {
     const todo = todos.find((t) => t.id === id)
     if (!todo || todo.completed) return
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t)),
     )
     const xpGained = Math.floor(todo.xp * xpMultiplier)
+    fireConfettiAt(checkboxEl ?? null)
+    playSound("pop")
+    setFloatingXp({ id, xp: xpGained })
+    setTimeout(() => setFloatingXp((cur) => (cur?.id === id ? null : cur)), 800)
     const assigned = todo.assignedCharacterId
       ? userCompanions.find((c) => c.id === todo.assignedCharacterId)
       : undefined
@@ -458,6 +541,8 @@ export default function Dashboard() {
   const completeDailyQuest = async (quest: DailyQuest) => {
     setDailyQuests((prev) => prev.map((q) => (q.id === quest.id ? { ...q, completed: true } : q)))
     const xp = Math.floor(quest.xp * xpMultiplier)
+    fireConfettiAt(typeof document !== "undefined" ? document.getElementById(`quest-${quest.id}`) : null)
+    playSound("pop")
     const character = userCompanions.find((c) => c.id === quest.characterId)
     await handleTaskCompleted(quest.text, quest.category, xp, character)
   }
@@ -683,6 +768,9 @@ export default function Dashboard() {
                 <p className="text-sm text-gray-400">Let's make today count.</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="hidden sm:block">
+                  <UserLevelBadge totalXp={totalXP} />
+                </div>
                 <Button
                   onClick={() => setFocusOpen(true)}
                   variant="outline"
@@ -744,6 +832,11 @@ export default function Dashboard() {
 
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
+                <DailyGoalRing
+                  xpToday={xpToday}
+                  goal={dailyGoal}
+                  level={userLevelForXp(totalXP)}
+                />
                 <DailyQuests quests={dailyQuests} companions={userCompanions} onComplete={completeDailyQuest} />
 
                 <Card className="bg-gray-900 border-gray-800 text-white">
@@ -841,9 +934,23 @@ export default function Dashboard() {
                         {todos.map((todo) => (
                           <div
                             key={todo.id}
-                            className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors"
+                            className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
                           >
-                            <Checkbox checked={todo.completed} onCheckedChange={() => toggleTodo(todo.id)} />
+                            {floatingXp?.id === todo.id && (
+                              <span className="animate-float-xp pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
+                                +{floatingXp.xp} XP
+                              </span>
+                            )}
+                            <Checkbox
+                              id={`cb-${todo.id}`}
+                              checked={todo.completed}
+                              onCheckedChange={() =>
+                                toggleTodo(
+                                  todo.id,
+                                  typeof document !== "undefined" ? document.getElementById(`cb-${todo.id}`) : null,
+                                )
+                              }
+                            />
                             <div className="flex-1 min-w-0">
                               {editingTodo === todo.id ? (
                                 <Input
@@ -953,6 +1060,8 @@ export default function Dashboard() {
             onCancelPremium={handleCancelPremium}
             onDeleteAccount={handleDeleteAccount}
             onSendFeedback={() => setSystemMessages((p) => [...p, "System: Thanks for the feedback!"])}
+            soundEnabled={soundEnabled}
+            onToggleSound={(enabled) => setSoundEnabled(enabled)}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
           />
@@ -972,6 +1081,11 @@ export default function Dashboard() {
         ) : null}
       </div>
 
+      <CelebrationOverlay
+        celebration={celebrationQueue[0] ?? null}
+        onDismiss={() => setCelebrationQueue((prev) => prev.slice(1))}
+        playSound={playSound}
+      />
       <FocusTimer
         open={focusOpen}
         onOpenChange={setFocusOpen}

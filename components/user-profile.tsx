@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ArrowLeft, User, CreditCard, MessageSquare, UserX, Save, AlertTriangle } from "lucide-react"
+import { ArrowLeft, User, CreditCard, MessageSquare, UserX, Save, AlertTriangle, Volume2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 
 interface UserInfo {
   username: string
@@ -24,6 +25,8 @@ interface UserProfileProps {
   onCancelPremium: () => void
   onDeleteAccount: () => void
   onSendFeedback: (feedback: string) => void
+  soundEnabled: boolean
+  onToggleSound: (enabled: boolean) => void
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
 }
@@ -35,6 +38,8 @@ export default function UserProfile({
   onCancelPremium,
   onDeleteAccount,
   onSendFeedback,
+  soundEnabled,
+  onToggleSound,
   sidebarOpen,
   setSidebarOpen,
 }: UserProfileProps) {
@@ -119,6 +124,25 @@ export default function UserProfile({
                   <span className="text-white">{userInfo.email}</span>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Preferences */}
+        <Card className="bg-gray-800 border-gray-700 text-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <Volume2 className="w-5 h-5" />
+              Preferences
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-medium">Sound effects</p>
+                <p className="text-gray-400 text-sm">Play sounds on completions and celebrations.</p>
+              </div>
+              <Switch checked={soundEnabled} onCheckedChange={onToggleSound} />
             </div>
           </CardContent>
         </Card>
