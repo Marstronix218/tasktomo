@@ -45,6 +45,9 @@ import FocusTimer from "@/components/focus-timer"
 import PremiumFeatures from "@/components/premium-features"
 import StreakBanner from "@/components/streak-banner"
 import UserProfilePanel from "@/components/user-profile"
+import CelebrationOverlay from "@/components/celebration-overlay"
+import DailyGoalRing from "@/components/daily-goal-ring"
+import UserLevelBadge from "@/components/user-level-badge"
 
 import { ALL_CHARACTERS, getAvailableCharacters, getMaxCompanions } from "@/lib/characters"
 import {
@@ -54,6 +57,10 @@ import {
   getTaskCompletionMessage,
 } from "@/lib/character_reactions"
 import { generateDailyQuests } from "@/lib/daily-quests"
+import { dailyGoalForLevel, userLevelForXp } from "@/lib/leveling"
+import { buildCelebrations, type Celebration } from "@/lib/celebrations"
+import { fireConfettiAt } from "@/lib/confetti"
+import { useSound } from "@/hooks/use-sound"
 import { diffDaysIso, hoursLeftInDay, todayIso } from "@/lib/date-utils"
 import {
   chatHistoryFromStored,
@@ -97,6 +104,12 @@ export default function Dashboard() {
   const [dailyQuests, setDailyQuests] = useState<DailyQuest[]>([])
   const [streakFreezes, setStreakFreezes] = useState(0)
   const [focusMinutesTotal, setFocusMinutesTotal] = useState(0)
+  const [xpToday, setXpToday] = useState(0)
+  const [xpTodayDate, setXpTodayDate] = useState(todayIso())
+  const [soundEnabled, setSoundEnabled] = useState(true)
+  const [celebrationQueue, setCelebrationQueue] = useState<(Celebration & { key: number })[]>([])
+  const [floatingXp, setFloatingXp] = useState<{ id: number; xp: number } | null>(null)
+  const celebrationKeyRef = useRef(0)
 
   const [streakCount, setStreakCount] = useState(0)
   const [totalXP, setTotalXP] = useState(0)
@@ -127,6 +140,7 @@ export default function Dashboard() {
   })
 
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const playSound = useSound(soundEnabled)
 
   useEffect(() => {
     const t = setInterval(() => forceTick((n) => n + 1), 60_000)
@@ -176,6 +190,14 @@ export default function Dashboard() {
       setStreakCount(profile.streak_count || 0)
       setStreakFreezes(profile.streak_freezes ?? 1)
       setFocusMinutesTotal(profile.focus_minutes_total || 0)
+      setSoundEnabled(profile.sound_enabled ?? true)
+      if (profile.xp_today_date === todayIso()) {
+        setXpToday(profile.xp_today || 0)
+        setXpTodayDate(profile.xp_today_date)
+      } else {
+        setXpToday(0)
+        setXpTodayDate(todayIso())
+      }
       setLastTaskCheck(profile.last_task_check || todayIso())
       setLastLogin(profile.last_login || todayIso())
       setLastCheckinTime(profile.last_checkin_time || 0)
@@ -230,6 +252,9 @@ export default function Dashboard() {
         daily_quests: dailyQuestsToRecords(dailyQuests),
         streak_freezes: streakFreezes,
         focus_minutes_total: focusMinutesTotal,
+        xp_today: xpToday,
+        xp_today_date: xpTodayDate,
+        sound_enabled: soundEnabled,
         onboarded: true,
       }
       const ok = await upsertUserProfile(payload)
@@ -241,7 +266,7 @@ export default function Dashboard() {
   }, [
     isProfileLoaded, userId, userInfo, totalXP, streakCount, userCompanions,
     chatHistories, todos, lastTaskCheck, lastLogin, lastCheckinTime, dailyQuests,
-    streakFreezes, focusMinutesTotal,
+    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, soundEnabled,
   ])
 
   useEffect(() => {
@@ -272,6 +297,8 @@ export default function Dashboard() {
           : t,
       ),
     )
+    setXpToday(0)
+    setXpTodayDate(today)
     setDailyQuests(generateDailyQuests(today, userCompanions))
     setLastLogin(today)
   }, [isProfileLoaded, userCompanions])
