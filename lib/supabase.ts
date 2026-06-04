@@ -24,6 +24,8 @@ export interface TaskData {
   difficulty?: "Easy" | "Medium" | "Hard"
   recurrence?: "none" | "daily" | "weekly"
   assigned_character_id?: number
+  scheduled_date?: string
+  order?: number
 }
 
 export interface CustomCharacter {

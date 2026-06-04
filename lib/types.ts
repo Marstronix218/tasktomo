@@ -13,6 +13,8 @@ export interface Todo {
   difficulty: Difficulty
   assignedCharacterId?: number
   recurrence?: "none" | "daily" | "weekly"
+  scheduledDate?: string
+  order?: number
   dueDate?: string
   createdAt?: string
   completedAt?: string
