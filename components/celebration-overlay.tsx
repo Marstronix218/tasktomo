@@ -44,8 +44,14 @@ export default function CelebrationOverlay({ celebration, onDismiss, playSound }
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
       onClick={onDismiss}
+      role="presentation"
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="celebration-title"
+        aria-describedby="celebration-sub"
+        tabIndex={-1}
         className="w-full max-w-xs bg-gray-900 border border-purple-500/40 rounded-2xl p-6 text-center animate-in zoom-in-95 fade-in duration-300"
         onClick={(e) => e.stopPropagation()}
       >
@@ -55,8 +61,8 @@ export default function CelebrationOverlay({ celebration, onDismiss, playSound }
             <AvatarFallback>{celebration.character.name[0]}</AvatarFallback>
           </Avatar>
         )}
-        <h2 className="text-lg font-bold text-white">{title}</h2>
-        <p className="text-sm text-gray-400 mt-1">{sub}</p>
+        <h2 id="celebration-title" className="text-lg font-bold text-white">{title}</h2>
+        <p id="celebration-sub" className="text-sm text-gray-400 mt-1">{sub}</p>
         <p className="text-purple-300 font-semibold text-sm mt-3">+{celebration.xpGained} XP</p>
         <Button onClick={onDismiss} className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
           Continue
