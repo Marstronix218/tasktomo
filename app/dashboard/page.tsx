@@ -375,12 +375,24 @@ export default function Dashboard() {
     xpGained: number,
     primaryCharacter?: Character,
   ) => {
-    setTotalXP((p) => p + xpGained)
     const today = todayIso()
+
+    const oldTotalXp = totalXP
+    const newTotalXp = totalXP + xpGained
+    setTotalXP(newTotalXp)
+
+    const oldStreak = streakCount
+    let newStreak = streakCount
     if (lastLogin !== today || completedToday === 0) {
-      setStreakCount((p) => p + 1)
+      newStreak = streakCount + 1
+      setStreakCount(newStreak)
     }
     setLastLogin(today)
+
+    const oldXpToday = xpTodayDate === today ? xpToday : 0
+    const newXpToday = oldXpToday + xpGained
+    setXpToday(newXpToday)
+    setXpTodayDate(today)
 
     const reactors = primaryCharacter ? [primaryCharacter] : userCompanions
     const reactorIds = new Set(reactors.map((r) => r.id))
@@ -388,11 +400,10 @@ export default function Dashboard() {
       reactors.map(async (c) => ({ c, msg: await generateAITaskMessage(c, taskText, category) })),
     )
 
-    // Compute companion updates and side-effect payloads up front. Keeping the side effects
-    // OUT of the setUserCompanions updater avoids duplicate messages when React invokes the
-    // updater twice (StrictMode in dev).
     const newSystemMessages: string[] = []
     const chatUpdates: { characterId: number; aiMsg: string }[] = []
+    const characterLevelUps: { character: Character; level: number }[] = []
+    const bondLevelUps: { character: Character; level: number }[] = []
 
     const updatedCompanions = userCompanions.map((c) => {
       if (!reactorIds.has(c.id)) return c
@@ -403,19 +414,31 @@ export default function Dashboard() {
       const newBond = Math.min(c.bondLevel + 0.1, c.maxBond)
       const bondLeveled = Math.floor(newBond) > Math.floor(c.bondLevel)
 
+      const updated = {
+        ...c,
+        xp: newXP,
+        level: newLevel,
+        tasksCompleted: newTasksCompleted,
+        bondLevel: newBond,
+        lastMessage: c.lastMessage,
+      }
+
       const aiMsg = messages.find((m) => m.c.id === c.id)?.msg
       if (aiMsg) {
         newSystemMessages.push(`${c.name}: ${aiMsg}`)
         chatUpdates.push({ characterId: c.id, aiMsg })
+        updated.lastMessage = aiMsg
       }
-      if (leveledUp) newSystemMessages.push(`${c.name}: ${getLevelUpMessage(c, newLevel)}`)
-      if (bondLeveled) newSystemMessages.push(`${c.name}: ${getBondLevelMessage(c, Math.floor(newBond))}`)
+      if (leveledUp) {
+        newSystemMessages.push(`${c.name}: ${getLevelUpMessage(c, newLevel)}`)
+        characterLevelUps.push({ character: updated, level: newLevel })
+      }
+      if (bondLeveled) {
+        newSystemMessages.push(`${c.name}: ${getBondLevelMessage(c, Math.floor(newBond))}`)
+        bondLevelUps.push({ character: updated, level: Math.floor(newBond) })
+      }
 
-      return {
-        ...c,
-        xp: newXP, level: newLevel, tasksCompleted: newTasksCompleted, bondLevel: newBond,
-        lastMessage: aiMsg || c.lastMessage,
-      }
+      return updated
     })
 
     setUserCompanions(updatedCompanions)
@@ -436,6 +459,27 @@ export default function Dashboard() {
         })
         return next
       })
+    }
+
+    const focusCharacter = primaryCharacter || reactors[0] || userCompanions[0]
+    const celebrations = buildCelebrations({
+      xpGained,
+      oldTotalXp,
+      newTotalXp,
+      oldStreak,
+      newStreak,
+      oldXpToday,
+      newXpToday,
+      dailyGoal: dailyGoalForLevel(userLevelForXp(oldTotalXp)),
+      focusCharacter,
+      characterLevelUps,
+      bondLevelUps,
+    })
+    if (celebrations.length > 0) {
+      setCelebrationQueue((prev) => [
+        ...prev,
+        ...celebrations.map((c) => ({ ...c, key: ++celebrationKeyRef.current })),
+      ])
     }
   }
 
