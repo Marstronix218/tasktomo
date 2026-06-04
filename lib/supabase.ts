@@ -78,6 +78,7 @@ export interface UserProfile {
   daily_goal?: number
   sound_enabled?: boolean
   persona?: string | null
+  active_companion_id?: number
   onboarded?: boolean
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null
