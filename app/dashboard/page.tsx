@@ -1092,6 +1092,7 @@ export default function Dashboard() {
         companions={userCompanions}
         todos={todos}
         onSessionComplete={handleFocusComplete}
+        playSound={playSound}
       />
     </div>
   )

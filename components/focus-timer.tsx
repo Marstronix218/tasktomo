@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Timer, Pause, Play, Square, Zap } from "lucide-react"
 import type { Character, Todo } from "@/lib/types"
+import type { SoundName } from "@/hooks/use-sound"
 
 const PRESETS = [
   { label: "15 min · Sprint", minutes: 15, xp: 15 },
@@ -21,9 +22,10 @@ interface Props {
   companions: Character[]
   todos: Todo[]
   onSessionComplete: (params: { minutes: number; xp: number; taskId?: number; characterId?: number }) => void
+  playSound?: (name: SoundName) => void
 }
 
-export default function FocusTimer({ open, onOpenChange, companions, todos, onSessionComplete }: Props) {
+export default function FocusTimer({ open, onOpenChange, companions, todos, onSessionComplete, playSound }: Props) {
   const [preset, setPreset] = useState(PRESETS[1])
   const [customMinutes, setCustomMinutes] = useState(30)
   const isCustom = preset.label === "Custom"
@@ -52,6 +54,7 @@ export default function FocusTimer({ open, onOpenChange, companions, todos, onSe
             completedRef.current = true
             setRunning(false)
             setCompleted(true)
+            playSound?.("celebrate")
             onSessionComplete({
               minutes: preset.minutes,
               xp: preset.xp,
@@ -67,13 +70,14 @@ export default function FocusTimer({ open, onOpenChange, companions, todos, onSe
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
     }
-  }, [running, preset, taskId, characterId, onSessionComplete])
+  }, [running, preset, taskId, characterId, onSessionComplete, playSound])
 
   const start = () => {
     completedRef.current = false
     setCompleted(false)
     setRunning(true)
     startedAtRef.current = Date.now()
+    playSound?.("pop")
   }
   const pause = () => setRunning(false)
   const selectCustom = () => setPreset({ label: "Custom", minutes: customMinutes, xp: customMinutes })
