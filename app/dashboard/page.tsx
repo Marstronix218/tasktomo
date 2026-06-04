@@ -483,13 +483,17 @@ export default function Dashboard() {
     }
   }
 
-  const toggleTodo = async (id: number) => {
+  const toggleTodo = async (id: number, checkboxEl?: HTMLElement | null) => {
     const todo = todos.find((t) => t.id === id)
     if (!todo || todo.completed) return
     setTodos((prev) =>
       prev.map((t) => (t.id === id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t)),
     )
     const xpGained = Math.floor(todo.xp * xpMultiplier)
+    fireConfettiAt(checkboxEl ?? null)
+    playSound("pop")
+    setFloatingXp({ id, xp: xpGained })
+    setTimeout(() => setFloatingXp((cur) => (cur?.id === id ? null : cur)), 800)
     const assigned = todo.assignedCharacterId
       ? userCompanions.find((c) => c.id === todo.assignedCharacterId)
       : undefined
@@ -529,6 +533,8 @@ export default function Dashboard() {
   const completeDailyQuest = async (quest: DailyQuest) => {
     setDailyQuests((prev) => prev.map((q) => (q.id === quest.id ? { ...q, completed: true } : q)))
     const xp = Math.floor(quest.xp * xpMultiplier)
+    fireConfettiAt(typeof document !== "undefined" ? document.getElementById(`quest-${quest.id}`) : null)
+    playSound("pop")
     const character = userCompanions.find((c) => c.id === quest.characterId)
     await handleTaskCompleted(quest.text, quest.category, xp, character)
   }
@@ -754,6 +760,9 @@ export default function Dashboard() {
                 <p className="text-sm text-gray-400">Let's make today count.</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="hidden sm:block">
+                  <UserLevelBadge totalXp={totalXP} />
+                </div>
                 <Button
                   onClick={() => setFocusOpen(true)}
                   variant="outline"
@@ -815,6 +824,11 @@ export default function Dashboard() {
 
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
+                <DailyGoalRing
+                  xpToday={xpToday}
+                  goal={dailyGoalForLevel(userLevelForXp(totalXP))}
+                  level={userLevelForXp(totalXP)}
+                />
                 <DailyQuests quests={dailyQuests} companions={userCompanions} onComplete={completeDailyQuest} />
 
                 <Card className="bg-gray-900 border-gray-800 text-white">
@@ -912,9 +926,23 @@ export default function Dashboard() {
                         {todos.map((todo) => (
                           <div
                             key={todo.id}
-                            className="flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors"
+                            className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
                           >
-                            <Checkbox checked={todo.completed} onCheckedChange={() => toggleTodo(todo.id)} />
+                            {floatingXp?.id === todo.id && (
+                              <span className="animate-float-xp pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
+                                +{floatingXp.xp} XP
+                              </span>
+                            )}
+                            <Checkbox
+                              id={`cb-${todo.id}`}
+                              checked={todo.completed}
+                              onCheckedChange={() =>
+                                toggleTodo(
+                                  todo.id,
+                                  typeof document !== "undefined" ? document.getElementById(`cb-${todo.id}`) : null,
+                                )
+                              }
+                            />
                             <div className="flex-1 min-w-0">
                               {editingTodo === todo.id ? (
                                 <Input
@@ -1043,6 +1071,11 @@ export default function Dashboard() {
         ) : null}
       </div>
 
+      <CelebrationOverlay
+        celebration={celebrationQueue[0] ?? null}
+        onDismiss={() => setCelebrationQueue((prev) => prev.slice(1))}
+        playSound={playSound}
+      />
       <FocusTimer
         open={focusOpen}
         onOpenChange={setFocusOpen}
