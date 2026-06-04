@@ -136,7 +136,6 @@ export default function Dashboard() {
   const [newTodoDifficulty, setNewTodoDifficulty] = useState<Difficulty>("Easy")
   const [newTodoRecurrence, setNewTodoRecurrence] = useState<"none" | "daily" | "weekly">("none")
   const [newTodoAssignedCharacterId, setNewTodoAssignedCharacterId] = useState<number | "">("")
-  const [editingTodo, setEditingTodo] = useState<number | null>(null)
   const [activeCompanionId, setActiveCompanionId] = useState<number | null>(null)
   const [taskEditorOpen, setTaskEditorOpen] = useState(false)
   const [taskBeingEdited, setTaskBeingEdited] = useState<Todo | null>(null)
@@ -560,10 +559,6 @@ export default function Dashboard() {
   }
 
   const deleteTodo = (id: number) => setTodos((prev) => prev.filter((t) => t.id !== id))
-  const updateTodo = (id: number, updates: Partial<Todo>) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-    setEditingTodo(null)
-  }
 
   const completeDailyQuest = async (quest: DailyQuest) => {
     setDailyQuests((prev) => prev.map((q) => (q.id === quest.id ? { ...q, completed: true } : q)))
@@ -908,6 +903,7 @@ export default function Dashboard() {
             userPlan={userInfo.plan}
             userInfo={userInfo}
             personaHint={personaHint}
+            initialDraft={chatPrefill}
           />
         ) : null}
       </div>
