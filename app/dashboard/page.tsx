@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   CreditCard,
@@ -748,8 +749,11 @@ export default function Dashboard() {
         </div>
 
         <nav className="space-y-1 mb-6">
-          <Button variant="ghost" className={`w-full justify-start ${currentView === "dashboard" ? "bg-gray-800" : ""}`} onClick={backToDashboard}>
-            <Target className="w-4 h-4 mr-2" /> Dashboard
+          <Button variant="ghost" className={`w-full justify-start ${currentView === "home" ? "bg-gray-800" : ""}`} onClick={() => setCurrentView("home")}>
+            <Target className="w-4 h-4 mr-2" /> Home
+          </Button>
+          <Button variant="ghost" className={`w-full justify-start ${currentView === "planner" ? "bg-gray-800" : ""}`} onClick={() => setCurrentView("planner")}>
+            <CalendarDays className="w-4 h-4 mr-2" /> Planner
           </Button>
           <Button variant="ghost" className="w-full justify-start" onClick={() => setFocusOpen(true)}>
             <Timer className="w-4 h-4 mr-2" /> Focus timer
@@ -820,253 +824,46 @@ export default function Dashboard() {
       )}
 
       <div className="lg:ml-64 transition-all duration-300">
-        {currentView === "dashboard" ? (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto pt-14 lg:pt-6 lg:h-screen lg:flex lg:flex-col lg:overflow-hidden">
-            <div className="flex items-center justify-between mb-4 gap-3">
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold truncate">Welcome back, {userInfo.username}</h1>
-                <p className="text-sm text-gray-400">Let's make today count.</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="hidden sm:block">
-                  <UserLevelBadge totalXp={totalXP} />
-                </div>
-                <Button
-                  onClick={() => setFocusOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="hidden sm:inline-flex border-purple-500/40 bg-transparent text-white hover:bg-purple-500/10"
-                >
-                  <Timer className="w-4 h-4 mr-1" /> Focus
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                      <Avatar>
-                        <AvatarImage src={userInfo.avatar} />
-                        <AvatarFallback><User className="w-4 h-4" /></AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 bg-gray-900 border-gray-800 text-white" align="end">
-                    <DropdownMenuLabel>
-                      <p className="text-sm font-medium truncate">{userInfo.username}</p>
-                      <p className="text-xs text-gray-400 truncate">{userInfo.email}</p>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-gray-800" />
-                    <DropdownMenuItem onClick={() => setCurrentView("profile")}>
-                      <Settings className="mr-2 h-4 w-4" /> Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setCurrentView("premium")}>
-                      <Crown className="mr-2 h-4 w-4" /> Plan: {userInfo.plan}
-                    </DropdownMenuItem>
-                    {userInfo.plan === "Free" && (
-                      <DropdownMenuItem onClick={handleUpgrade}>
-                        <CreditCard className="mr-2 h-4 w-4" /> Upgrade
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator className="bg-gray-800" />
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" /> Log out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <div className="flex-shrink-0">
-              <StreakBanner
-                streakCount={streakCount}
-                completedToday={completedToday}
-                streakFreezes={streakFreezes}
-                plan={userInfo.plan}
-                onUseFreeze={useStreakFreezeNow}
-                hoursLeftInDay={Math.ceil(hoursLeft)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 flex-shrink-0">
-              <Stat icon={<Zap className="w-5 h-5 text-purple-400" />} label="Total XP" value={totalXP.toString()} hint={xpMultiplier > 1 ? `${xpMultiplier.toFixed(1)}× streak bonus` : undefined} accent="purple" />
-              <Stat icon={<Flame className="w-5 h-5 text-orange-400" />} label="Streak" value={`${streakCount}d`} hint={streakCount >= 3 ? "Bonus active" : streakCount === 0 ? "Start one today" : "Keep going"} accent="orange" />
-              <Stat icon={<CheckCircle2 className="w-5 h-5 text-green-400" />} label="Tasks" value={`${completedTodos}/${todos.length}`} hint={completedToday > 0 ? `${completedToday} done today` : "Nothing done yet"} accent="green" />
-              <Stat icon={<Timer className="w-5 h-5 text-blue-400" />} label="Focus" value={`${focusMinutesTotal}m`} hint="Lifetime focused" accent="blue" />
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6 items-stretch lg:flex-1 lg:min-h-0">
-              {/* Left: daily goal + quests */}
-              <div className="space-y-4 order-2 lg:order-1 lg:overflow-y-auto lg:min-h-0 pr-1">
-                <DailyGoalRing
-                  xpToday={xpToday}
-                  goal={dailyGoal}
-                  level={userLevelForXp(totalXP)}
-                />
-                <DailyQuests quests={dailyQuests} companions={userCompanions} onComplete={completeDailyQuest} />
-              </div>
-
-              {/* Right: today's tasks */}
-              <div className="order-1 lg:order-2 lg:min-h-0 lg:h-full">
-                <Card className="bg-gray-900 border-gray-800 text-white flex flex-col lg:h-full">
-                  <CardHeader className="pb-3 flex-shrink-0">
-                    <CardTitle className="flex items-center justify-between text-base text-white">
-                      <span>Today's tasks</span>
-                      <Badge variant="secondary" className="bg-gray-800 text-white">{completedTodos}/{todos.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 flex flex-col pt-1">
-                    <div className="space-y-2 mb-4 flex-shrink-0">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a task..."
-                          value={newTodo}
-                          onChange={(e) => setNewTodo(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && addTodo()}
-                          className="bg-gray-800 border-gray-700 text-white"
-                        />
-                        <Button
-                          onClick={() => addTodo()}
-                          size="sm"
-                          disabled={!newTodo.trim() || userCompanions.length === 0}
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <Select value={newTodoCategory} onValueChange={(v) => setNewTodoCategory(v as TaskCategory)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {TASK_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Select value={newTodoDifficulty} onValueChange={(v) => setNewTodoDifficulty(v as Difficulty)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Easy">Easy · 10 XP</SelectItem>
-                            <SelectItem value="Medium">Medium · 20 XP</SelectItem>
-                            <SelectItem value="Hard">Hard · 30 XP</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select value={newTodoRecurrence} onValueChange={(v) => setNewTodoRecurrence(v as any)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">One-time</SelectItem>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={newTodoAssignedCharacterId === "" ? "" : String(newTodoAssignedCharacterId)}
-                          onValueChange={(v) => {
-                            if (v === "__random__") {
-                              if (userCompanions.length > 0) {
-                                setNewTodoAssignedCharacterId(
-                                  userCompanions[Math.floor(Math.random() * userCompanions.length)].id,
-                                )
-                              }
-                              return
-                            }
-                            setNewTodoAssignedCharacterId(v === "" ? "" : Number(v))
-                          }}
-                        >
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs">
-                            <SelectValue placeholder="Companion" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__random__">
-                              <div className="flex items-center gap-2">
-                                <Shuffle className="w-3.5 h-3.5 text-purple-400" />
-                                <span>Random</span>
-                              </div>
-                            </SelectItem>
-                            {userCompanions.map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                <div className="flex items-center gap-2">
-                                  <img src={c.avatar} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                  <span>{c.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
-                    {todos.length === 0 ? (
-                      <div className="text-center py-8 text-sm text-gray-500">
-                        No tasks yet — add one to get started.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {todos.map((todo) => (
-                          <div
-                            key={todo.id}
-                            className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
-                          >
-                            {floatingXp?.id === todo.id && (
-                              <span className="animate-float-xp pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
-                                +{floatingXp.xp} XP
-                              </span>
-                            )}
-                            <Checkbox
-                              id={`cb-${todo.id}`}
-                              checked={todo.completed}
-                              onCheckedChange={() =>
-                                toggleTodo(
-                                  todo.id,
-                                  typeof document !== "undefined" ? document.getElementById(`cb-${todo.id}`) : null,
-                                )
-                              }
-                            />
-                            <div className="flex-1 min-w-0">
-                              {editingTodo === todo.id ? (
-                                <Input
-                                  value={todo.text}
-                                  onChange={(e) => updateTodo(todo.id, { text: e.target.value })}
-                                  onBlur={() => setEditingTodo(null)}
-                                  onKeyDown={(e) => e.key === "Enter" && setEditingTodo(null)}
-                                  className="bg-gray-700 border-gray-600 text-white text-sm"
-                                  autoFocus
-                                />
-                              ) : (
-                                <>
-                                  <p className={`text-sm ${todo.completed ? "line-through text-gray-500" : "text-white"}`}>
-                                    {todo.text}
-                                  </p>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <Badge variant="outline" className="text-[10px] text-gray-400 border-gray-700 px-1.5 py-0">{todo.category}</Badge>
-                                    <Badge variant="outline" className="text-[10px] text-gray-400 border-gray-700 px-1.5 py-0">{todo.difficulty}</Badge>
-                                    {todo.recurrence && todo.recurrence !== "none" && (
-                                      <Badge variant="outline" className="text-[10px] text-blue-300 border-blue-700/50 px-1.5 py-0">{todo.recurrence}</Badge>
-                                    )}
-                                    {todo.assignedCharacterId && (
-                                      <Badge variant="outline" className="text-[10px] text-white border-purple-700/50 px-1.5 py-0">
-                                        {userCompanions.find((c) => c.id === todo.assignedCharacterId)?.name || "?"}
-                                      </Badge>
-                                    )}
-                                    <span className="text-[10px] text-purple-400">+{Math.floor(todo.xp * xpMultiplier)} XP</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => setEditingTodo(todo.id)} className="p-1 h-7 w-7">
-                                <Edit className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => deleteTodo(todo.id)} className="p-1 h-7 w-7 text-red-400">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </div>
+        {currentView === "home" ? (
+          <HomeView
+            username={userInfo.username}
+            totalXP={totalXP}
+            streakCount={streakCount}
+            completedToday={completedToday}
+            streakFreezes={streakFreezes}
+            plan={userInfo.plan}
+            hoursLeft={hoursLeft}
+            onUseFreeze={useStreakFreezeNow}
+            focusMinutesTotal={focusMinutesTotal}
+            xpToday={xpToday}
+            dailyGoal={dailyGoal}
+            userLevel={userLevelForXp(totalXP)}
+            todayTodos={todayTodos}
+            todosDoneCount={todayTodos.filter((t) => t.completed).length}
+            todosTotalCount={todayTodos.length}
+            dailyQuests={dailyQuests}
+            companions={userCompanions}
+            activeCompanion={activeCompanion}
+            onSelectCompanion={(id) => setActiveCompanionId(id)}
+            onToggleTodo={toggleTodo}
+            onQuickAdd={(text) => addTodo(text)}
+            onCompleteQuest={completeDailyQuest}
+            onOpenChat={openChatFromHome}
+            onOpenFocus={() => setFocusOpen(true)}
+            floatingXp={floatingXp}
+            setSidebarOpen={setSidebarOpen}
+          />
+        ) : currentView === "planner" ? (
+          <WeekPlanner
+            todos={todos}
+            companions={userCompanions}
+            onMoveTask={moveTask}
+            onToggle={toggleTodo}
+            onEdit={(todo) => openTaskEditor(todo)}
+            onAdd={() => openTaskEditor(null)}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+          />
         ) : currentView === "characters" ? (
           <CharacterSelection
             allCharacters={availableCharacters}
@@ -1119,6 +916,15 @@ export default function Dashboard() {
         celebration={celebrationQueue[0] ?? null}
         onDismiss={() => setCelebrationQueue((prev) => prev.slice(1))}
         playSound={playSound}
+      />
+      <TaskEditor
+        open={taskEditorOpen}
+        initial={taskBeingEdited}
+        defaultDate={todayIso()}
+        companions={userCompanions}
+        onClose={() => { setTaskEditorOpen(false); setTaskBeingEdited(null) }}
+        onSave={upsertTask}
+        onDelete={(id) => { deleteTodo(id); setTaskEditorOpen(false); setTaskBeingEdited(null) }}
       />
       <FocusTimer
         open={focusOpen}
