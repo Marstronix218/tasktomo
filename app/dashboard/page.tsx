@@ -49,6 +49,10 @@ import CelebrationOverlay from "@/components/celebration-overlay"
 import DailyGoalRing from "@/components/daily-goal-ring"
 import UserLevelBadge from "@/components/user-level-badge"
 import Stat from "@/components/stat-card"
+import HomeView from "@/components/home-view"
+import WeekPlanner from "@/components/week-planner"
+import TaskEditor from "@/components/task-editor"
+import { moveToDay } from "@/lib/planner"
 
 import { ALL_CHARACTERS, getAvailableCharacters, getMaxCompanions } from "@/lib/characters"
 import { getPersonaPromptHint, type PersonaId } from "@/lib/personas"
@@ -86,7 +90,7 @@ import {
 import type { Character, ChatHistory, ChatMessage, DailyQuest, Difficulty, TaskCategory, Todo } from "@/lib/types"
 import { TASK_CATEGORIES, XP_BY_DIFFICULTY } from "@/lib/types"
 
-type View = "dashboard" | "chat" | "characters" | "premium" | "profile"
+type View = "home" | "planner" | "chat" | "characters" | "premium" | "profile"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -132,8 +136,12 @@ export default function Dashboard() {
   const [newTodoRecurrence, setNewTodoRecurrence] = useState<"none" | "daily" | "weekly">("none")
   const [newTodoAssignedCharacterId, setNewTodoAssignedCharacterId] = useState<number | "">("")
   const [editingTodo, setEditingTodo] = useState<number | null>(null)
+  const [activeCompanionId, setActiveCompanionId] = useState<number | null>(null)
+  const [taskEditorOpen, setTaskEditorOpen] = useState(false)
+  const [taskBeingEdited, setTaskBeingEdited] = useState<Todo | null>(null)
+  const [chatPrefill, setChatPrefill] = useState("")
 
-  const [currentView, setCurrentView] = useState<View>("dashboard")
+  const [currentView, setCurrentView] = useState<View>("home")
   const [activeCharacter, setActiveCharacter] = useState<Character | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
@@ -200,6 +208,7 @@ export default function Dashboard() {
       setFocusMinutesTotal(profile.focus_minutes_total || 0)
       setSoundEnabled(profile.sound_enabled ?? true)
       setPersona((profile.persona as PersonaId) ?? null)
+      setActiveCompanionId(profile.active_companion_id ?? null)
       if (profile.xp_today_date === todayIso()) {
         setXpToday(profile.xp_today || 0)
         setXpTodayDate(profile.xp_today_date)
@@ -268,6 +277,7 @@ export default function Dashboard() {
         daily_goal: dailyGoal,
         sound_enabled: soundEnabled,
         persona: persona,
+        active_companion_id: activeCompanionId ?? undefined,
         onboarded: true,
       }
       const ok = await upsertUserProfile(payload)
@@ -279,7 +289,7 @@ export default function Dashboard() {
   }, [
     isProfileLoaded, userId, userInfo, totalXP, streakCount, userCompanions,
     chatHistories, todos, lastTaskCheck, lastLogin, lastCheckinTime, dailyQuests,
-    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled, persona,
+    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled, persona, activeCompanionId,
   ])
 
   useEffect(() => {
@@ -346,6 +356,12 @@ export default function Dashboard() {
   const availableCharacters = getAvailableCharacters(userInfo.plan)
   const maxCompanions = getMaxCompanions(userInfo.plan)
   const personaHint = getPersonaPromptHint(persona)
+  const activeCompanion =
+    userCompanions.find((c) => c.id === activeCompanionId) || userCompanions[0] || null
+  const todayTodos = useMemo(
+    () => todos.filter((t) => t.scheduledDate === todayIso()),
+    [todos],
+  )
 
   const generateAITaskMessage = async (character: Character, taskText: string, category: string): Promise<string> => {
     // Rotate through different reaction angles + a random seed so the same task doesn't
@@ -516,27 +532,29 @@ export default function Dashboard() {
     await handleTaskCompleted(todo.text, todo.category, xpGained, assigned)
   }
 
-  const addTodo = () => {
-    if (!newTodo.trim() || userCompanions.length === 0) return
-    // Companion is optional — fall back to the first companion when none is picked.
+  const addTodo = (textArg?: string) => {
+    const text = (textArg ?? newTodo).trim()
+    if (!text || userCompanions.length === 0) return
     const assignedId =
       newTodoAssignedCharacterId === "" ? userCompanions[0].id : (newTodoAssignedCharacterId as number)
+    const today = todayIso()
+    const todayCount = todos.filter((t) => t.scheduledDate === today).length
     setTodos((prev) => [
       ...prev,
       {
         id: Date.now(),
-        text: newTodo.trim(),
+        text,
         completed: false,
         xp: XP_BY_DIFFICULTY[newTodoDifficulty],
         category: newTodoCategory,
         difficulty: newTodoDifficulty,
         assignedCharacterId: assignedId,
         recurrence: newTodoRecurrence,
+        scheduledDate: today,
+        order: todayCount,
         createdAt: new Date().toISOString(),
       },
     ])
-    // Keep category / difficulty / recurrence / companion so adding several tasks in a row
-    // doesn't force re-selecting everything each time.
     setNewTodo("")
   }
 
@@ -553,6 +571,30 @@ export default function Dashboard() {
     playSound("pop")
     const character = userCompanions.find((c) => c.id === quest.characterId)
     await handleTaskCompleted(quest.text, quest.category, xp, character)
+  }
+
+  const moveTask = (taskId: number, dayIso: string | null, toIndex: number) => {
+    setTodos((prev) => moveToDay(prev, taskId, dayIso, toIndex))
+  }
+
+  const upsertTask = (task: Todo) => {
+    setTodos((prev) => {
+      const exists = prev.some((t) => t.id === task.id)
+      return exists ? prev.map((t) => (t.id === task.id ? task : t)) : [...prev, task]
+    })
+    setTaskEditorOpen(false)
+    setTaskBeingEdited(null)
+  }
+
+  const openTaskEditor = (todo: Todo | null) => {
+    setTaskBeingEdited(todo)
+    setTaskEditorOpen(true)
+  }
+
+  const openChatFromHome = (prefill: string) => {
+    if (!activeCompanion) return
+    setChatPrefill(prefill)
+    openCharacterChat(activeCompanion)
   }
 
   const handleFocusComplete = async ({ minutes, xp, taskId, characterId }: { minutes: number; xp: number; taskId?: number; characterId?: number }) => {
@@ -583,7 +625,7 @@ export default function Dashboard() {
   }
 
   const backToDashboard = () => {
-    setCurrentView("dashboard")
+    setCurrentView("home")
     setActiveCharacter(null)
   }
 
@@ -593,7 +635,7 @@ export default function Dashboard() {
       return
     }
     setUserCompanions(next)
-    setCurrentView("dashboard")
+    setCurrentView("home")
   }
 
   const updateChatHistory = (characterId: number, messages: ChatMessage[]) => {
@@ -881,7 +923,7 @@ export default function Dashboard() {
                           className="bg-gray-800 border-gray-700 text-white"
                         />
                         <Button
-                          onClick={addTodo}
+                          onClick={() => addTodo()}
                           size="sm"
                           disabled={!newTodo.trim() || userCompanions.length === 0}
                           className="bg-purple-600 hover:bg-purple-700"
