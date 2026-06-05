@@ -24,6 +24,7 @@ export interface Character {
   id: number
   name: string
   avatar: string
+  fullBody?: string
   level: number
   personality: string
   description: string

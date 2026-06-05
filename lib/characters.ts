@@ -5,6 +5,7 @@ export const ALL_CHARACTERS: Character[] = [
     id: 1,
     name: "Mika",
     avatar: "/mika.png",
+    fullBody: "/mika_fullbody.png",
     level: 1,
     personality: "Cheerful Genki Girl",
     description: "Energetic and overly cheerful, always ready to hype you up",

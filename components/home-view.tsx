@@ -12,7 +12,7 @@ import DailyGoalRing from "@/components/daily-goal-ring"
 import UserLevelBadge from "@/components/user-level-badge"
 import CharacterHero from "@/components/character-hero"
 import DailyQuests from "@/components/daily-quests"
-import StreakBanner from "@/components/streak-banner"
+import StreakChip from "@/components/streak-chip"
 import type { Character, DailyQuest, Todo } from "@/lib/types"
 
 interface HomeViewProps {
@@ -34,6 +34,7 @@ interface HomeViewProps {
   dailyQuests: DailyQuest[]
   companions: Character[]
   activeCompanion: Character | null
+  heroReaction: { nonce: number; kind: "celebrate" }
   onSelectCompanion: (id: number) => void
   onToggleTodo: (id: number, el: HTMLElement | null) => void
   onQuickAdd: (text: string) => void
@@ -49,7 +50,7 @@ export default function HomeView(props: HomeViewProps) {
     username, totalXP, streakCount, completedToday, streakFreezes, plan, hoursLeft, onUseFreeze,
     focusMinutesTotal, xpToday, dailyGoal, userLevel, todayTodos, todosDoneCount, todosTotalCount,
     dailyQuests, companions, activeCompanion, onSelectCompanion, onToggleTodo, onQuickAdd,
-    onCompleteQuest, onOpenChat, onOpenFocus, floatingXp, setSidebarOpen,
+    onCompleteQuest, onOpenChat, onOpenFocus, floatingXp, setSidebarOpen, heroReaction,
   } = props
   const [quickText, setQuickText] = useState("")
   const [chatText, setChatText] = useState("")
@@ -64,21 +65,20 @@ export default function HomeView(props: HomeViewProps) {
           <h1 className="text-xl sm:text-2xl font-bold truncate">Hi, {username}</h1>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          <StreakChip
+            streakCount={streakCount}
+            completedToday={completedToday}
+            streakFreezes={streakFreezes}
+            plan={plan}
+            onUseFreeze={onUseFreeze}
+            hoursLeftInDay={Math.ceil(hoursLeft)}
+          />
           <div className="hidden sm:block"><UserLevelBadge totalXp={totalXP} /></div>
           <Button onClick={onOpenFocus} variant="outline" size="sm" className="border-purple-500/40 bg-transparent text-white hover:bg-purple-500/10">
             <Timer className="w-4 h-4 mr-1" /> Focus
           </Button>
         </div>
       </div>
-
-      <StreakBanner
-        streakCount={streakCount}
-        completedToday={completedToday}
-        streakFreezes={streakFreezes}
-        plan={plan}
-        onUseFreeze={onUseFreeze}
-        hoursLeftInDay={Math.ceil(hoursLeft)}
-      />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 my-4">
         <Stat icon={<Zap className="w-5 h-5 text-purple-400" />} label="Total XP" value={totalXP.toString()} accent="purple" />
@@ -89,7 +89,12 @@ export default function HomeView(props: HomeViewProps) {
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="space-y-4">
-          <CharacterHero active={activeCompanion} companions={companions} onSelect={onSelectCompanion} />
+          <CharacterHero
+            active={activeCompanion}
+            companions={companions}
+            heroReaction={heroReaction}
+            onSelect={onSelectCompanion}
+          />
           <DailyGoalRing xpToday={xpToday} goal={dailyGoal} level={userLevel} />
         </div>
 
@@ -129,10 +134,10 @@ export default function HomeView(props: HomeViewProps) {
                     <div
                       key={todo.id}
                       id={`cb-${todo.id}`}
-                      className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
+                      className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 motion-reduce:animate-none ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
                     >
                       {floatingXp?.id === todo.id && (
-                        <span className="animate-float-xp pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
+                        <span className="animate-float-xp motion-reduce:animate-none pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
                           +{floatingXp.xp} XP
                         </span>
                       )}

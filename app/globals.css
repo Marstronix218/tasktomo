@@ -93,26 +93,8 @@ body {
   }
 }
 
-/* Completion juice */
-@keyframes float-xp {
-  0% { opacity: 0; transform: translateY(0) scale(0.8); }
-  10% { opacity: 1; transform: translateY(-6px) scale(1); }
-  85% { opacity: 1; transform: translateY(-22px) scale(1); }
-  100% { opacity: 0; transform: translateY(-30px) scale(1); }
-}
-.animate-float-xp {
-  animation: float-xp 3000ms ease-out forwards;
-}
-
-@keyframes task-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.015); }
-  100% { transform: scale(1); }
-}
-.animate-task-pop {
-  animation: task-pop 300ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .animate-float-xp, .animate-task-pop { animation: none; }
-}
+/* NOTE: keyframes/animations live in tailwind.config.ts (theme.extend), not here.
+   Raw @keyframes placed after the @tailwind directives get stripped from the
+   production build in this project's pipeline; config-defined ones survive.
+   Reduced-motion is handled per-element with the `motion-reduce:animate-none`
+   Tailwind variant. */

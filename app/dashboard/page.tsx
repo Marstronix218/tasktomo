@@ -44,7 +44,6 @@ import ChatInterface from "@/components/chat-interface"
 import DailyQuests from "@/components/daily-quests"
 import FocusTimer from "@/components/focus-timer"
 import PremiumFeatures from "@/components/premium-features"
-import StreakBanner from "@/components/streak-banner"
 import UserProfilePanel from "@/components/user-profile"
 import CelebrationOverlay from "@/components/celebration-overlay"
 import DailyGoalRing from "@/components/daily-goal-ring"
@@ -122,6 +121,10 @@ export default function Dashboard() {
   const [persona, setPersona] = useState<PersonaId | null>(null)
   const [celebrationQueue, setCelebrationQueue] = useState<(Celebration & { key: number })[]>([])
   const [floatingXp, setFloatingXp] = useState<{ id: number; xp: number } | null>(null)
+  const [heroReaction, setHeroReaction] = useState<{ nonce: number; kind: "celebrate" }>({
+    nonce: 0,
+    kind: "celebrate",
+  })
   const celebrationKeyRef = useRef(0)
 
   const [streakCount, setStreakCount] = useState(0)
@@ -408,6 +411,7 @@ export default function Dashboard() {
     primaryCharacter?: Character,
   ) => {
     const today = todayIso()
+    setHeroReaction((r) => ({ nonce: r.nonce + 1, kind: "celebrate" }))
 
     const oldTotalXp = totalXP
     const newTotalXp = totalXP + xpGained
@@ -839,6 +843,7 @@ export default function Dashboard() {
             dailyQuests={dailyQuests}
             companions={userCompanions}
             activeCompanion={activeCompanion}
+            heroReaction={heroReaction}
             onSelectCompanion={(id) => setActiveCompanionId(id)}
             onToggleTodo={toggleTodo}
             onQuickAdd={(text) => addTodo(text)}
