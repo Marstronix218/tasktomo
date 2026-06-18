@@ -1,16 +1,16 @@
-# TaskCrewAI
+# TaskTomo
 
-TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your daily productivity with the help of unique AI characters, each with their own personalities, motivational styles, and interactive chat features. Track your tasks, earn XP, build streaks, and form bonds with your favorite companions!
+TaskTomo is a gamified productivity dashboard and AI companion app. Boost your daily productivity with the help of unique AI characters, each with their own personalities, motivational styles, and interactive chat features. Track your tasks, earn XP, build streaks, and form bonds with your favorite companions!
 
 ## Screenshots
 
 ### Landing page
 
-![TaskCrewAI landing page](public/screenshot-landing.png)
+![TaskTomo landing page](public/screenshot-landing.png)
 
 ### Dashboard
 
-![TaskCrewAI dashboard](public/screenshot-dashboard.png)
+![TaskTomo dashboard](public/screenshot-dashboard.png)
 
 ## Features
 
@@ -43,7 +43,7 @@ TaskCrewAI is a gamified productivity dashboard and AI companion app. Boost your
 1. **Clone the repository:**
    ```sh
    git clone <repo-url>
-   cd taskcrewai
+   cd tasktomo
    ```
 2. **Install dependencies:**
    > If you encounter peer dependency errors, use the legacy flag:

@@ -65,8 +65,8 @@ function LoginForm() {
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center p-6">
       <Link href="/" className="flex items-center gap-2 mb-6">
-        <img src="/logo.png" alt="TaskCrewAI" className="w-8 h-8 rounded-lg" />
-        <span className="font-bold text-lg">TaskCrewAI</span>
+        <img src="/logo.png" alt="TaskTomo" className="w-8 h-8 rounded-lg" />
+        <span className="font-bold text-lg">TaskTomo</span>
       </Link>
       <Card className="w-full max-w-md bg-gray-900 border-gray-800">
         <CardHeader>

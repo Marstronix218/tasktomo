@@ -92,8 +92,8 @@ export default function LandingPage() {
       <nav className="sticky top-0 z-50 backdrop-blur bg-gray-950/80 border-b border-gray-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="TaskCrewAI" className="w-8 h-8 rounded-lg" />
-            <span className="font-bold text-lg">TaskCrewAI</span>
+            <img src="/logo.png" alt="TaskTomo" className="w-8 h-8 rounded-lg" />
+            <span className="font-bold text-lg">TaskTomo</span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-4">
             <Link href="/pricing" className="text-sm text-gray-300 hover:text-white px-2 py-1">
@@ -192,7 +192,7 @@ export default function LandingPage() {
           <Stat icon={<Zap className="w-4 h-4" />} value="3×" label="Max XP streak multiplier" />
           <Stat icon={<Target className="w-4 h-4" />} value="10" label="AI companions" />
           <Stat icon={<Timer className="w-4 h-4" />} value="∞" label="Focus sessions (Free)" />
-          <Stat icon={<Heart className="w-4 h-4" />} value="10" label="Bond levels per crew" />
+          <Stat icon={<Heart className="w-4 h-4" />} value="10" label="Bond levels per companion" />
         </div>
       </section>
 
@@ -251,7 +251,7 @@ export default function LandingPage() {
           <Link href="/pricing" className="hover:text-gray-300">Pricing</Link>
           <Link href="/login" className="hover:text-gray-300">Sign in</Link>
         </div>
-        © {new Date().getFullYear()} TaskCrewAI
+        © {new Date().getFullYear()} TaskTomo
       </footer>
     </div>
   )

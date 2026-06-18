@@ -153,7 +153,7 @@ export default function PricingPage() {
         </div>
 
         <div className="mt-12 text-center text-xs text-gray-500">
-          Questions? <a href="mailto:hello@taskcrew.ai" className="underline hover:text-gray-300">Get in touch</a>
+          Questions? <a href="mailto:tasktomo@g-launchers.com" className="underline hover:text-gray-300">Get in touch</a>
         </div>
       </div>
     </div>

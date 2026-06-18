@@ -693,7 +693,7 @@ export default function Dashboard() {
       >
         <div className="flex items-center gap-2 mb-6 cursor-pointer" onClick={backToDashboard}>
           <img src="/logo.png" alt="" className="w-8 h-8 rounded-lg object-cover" />
-          <span className="text-lg font-bold">TaskCrewAI</span>
+          <span className="text-lg font-bold">TaskTomo</span>
           <Button
             variant="ghost"
             size="sm"
@@ -1037,7 +1037,7 @@ export default function Dashboard() {
         ) : currentView === "premium" ? (
           <div className="p-6 max-w-4xl mx-auto pt-14 lg:pt-6">
             <h1 className="text-2xl font-bold mb-1">Premium features</h1>
-            <p className="text-gray-400 mb-6">Unlock the full potential of TaskCrewAI</p>
+            <p className="text-gray-400 mb-6">Unlock the full potential of TaskTomo</p>
             <PremiumFeatures userPlan={userInfo.plan} onUpgrade={handleUpgrade} />
           </div>
         ) : currentView === "profile" ? (

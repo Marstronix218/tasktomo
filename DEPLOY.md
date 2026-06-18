@@ -1,4 +1,4 @@
-# Deploying TaskCrewAI
+# Deploying TaskTomo
 
 End-to-end checklist to go from this repo to a live, paid product.
 
@@ -18,7 +18,7 @@ End-to-end checklist to go from this repo to a live, paid product.
 
 1. Create a Stripe account, switch to test mode for now.
 2. Create a Product called "Premium" with two prices: $9 / month and $72 / year. Copy the price IDs.
-3. **Webhook**: Stripe Dashboard → Webhooks → Add endpoint. URL = `https://YOUR_DOMAIN/api/stripe/webhook`. Send these events:
+3. **Webhook**: Stripe Dashboard → Webhooks → Add endpoint. URL = `https://tasktomo.com/api/stripe/webhook`. Send these events:
    - `checkout.session.completed`
    - `customer.subscription.updated`
    - `customer.subscription.deleted`
@@ -45,7 +45,7 @@ STRIPE_PRICE_ID_MONTHLY=price_...
 STRIPE_PRICE_ID_YEARLY=price_...
 
 # Required — site URL (return URLs from Stripe)
-NEXT_PUBLIC_SITE_URL=https://yourdomain.com    # http://localhost:3000 for local
+NEXT_PUBLIC_SITE_URL=https://tasktomo.com      # http://localhost:3000 for local
 ```
 
 If Stripe vars are missing, `/pricing` will still render and `/api/stripe/checkout` returns a graceful 503 — the rest of the app works without payments.
