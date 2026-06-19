@@ -55,6 +55,7 @@ interface ChatInterfaceProps {
   userPlan: "Free" | "Premium"
   userInfo?: { username: string; email: string; plan: "Free" | "Premium"; avatar: string }
   personaHint?: string
+  initialDraft?: string
 }
 
 export default function ChatInterface({
@@ -69,9 +70,10 @@ export default function ChatInterface({
   userPlan,
   userInfo,
   personaHint,
+  initialDraft,
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>(chatHistory)
-  const [newMessage, setNewMessage] = useState("")
+  const [newMessage, setNewMessage] = useState(initialDraft ?? "")
   const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -80,6 +82,11 @@ export default function ChatInterface({
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
 
   useEffect(() => setMessages(chatHistory), [chatHistory])
+
+  // Seed the input with a draft passed in from the Home chat-launcher bar.
+  useEffect(() => {
+    if (initialDraft) setNewMessage(initialDraft)
+  }, [initialDraft])
 
   useEffect(() => {
     if (chatHistory.length === 0) {

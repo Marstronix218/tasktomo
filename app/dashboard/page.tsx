@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   CreditCard,
@@ -43,11 +44,15 @@ import ChatInterface from "@/components/chat-interface"
 import DailyQuests from "@/components/daily-quests"
 import FocusTimer from "@/components/focus-timer"
 import PremiumFeatures from "@/components/premium-features"
-import StreakBanner from "@/components/streak-banner"
 import UserProfilePanel from "@/components/user-profile"
 import CelebrationOverlay from "@/components/celebration-overlay"
 import DailyGoalRing from "@/components/daily-goal-ring"
 import UserLevelBadge from "@/components/user-level-badge"
+import Stat from "@/components/stat-card"
+import HomeView from "@/components/home-view"
+import WeekPlanner from "@/components/week-planner"
+import TaskEditor from "@/components/task-editor"
+import { moveToDay } from "@/lib/planner"
 
 import { ALL_CHARACTERS, getAvailableCharacters, getMaxCompanions } from "@/lib/characters"
 import { getPersonaPromptHint, type PersonaId } from "@/lib/personas"
@@ -85,7 +90,7 @@ import {
 import type { Character, ChatHistory, ChatMessage, DailyQuest, Difficulty, TaskCategory, Todo } from "@/lib/types"
 import { TASK_CATEGORIES, XP_BY_DIFFICULTY } from "@/lib/types"
 
-type View = "dashboard" | "chat" | "characters" | "premium" | "profile"
+type View = "home" | "planner" | "chat" | "characters" | "premium" | "profile"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -116,6 +121,10 @@ export default function Dashboard() {
   const [persona, setPersona] = useState<PersonaId | null>(null)
   const [celebrationQueue, setCelebrationQueue] = useState<(Celebration & { key: number })[]>([])
   const [floatingXp, setFloatingXp] = useState<{ id: number; xp: number } | null>(null)
+  const [heroReaction, setHeroReaction] = useState<{ nonce: number; kind: "celebrate" }>({
+    nonce: 0,
+    kind: "celebrate",
+  })
   const celebrationKeyRef = useRef(0)
 
   const [streakCount, setStreakCount] = useState(0)
@@ -130,9 +139,12 @@ export default function Dashboard() {
   const [newTodoDifficulty, setNewTodoDifficulty] = useState<Difficulty>("Easy")
   const [newTodoRecurrence, setNewTodoRecurrence] = useState<"none" | "daily" | "weekly">("none")
   const [newTodoAssignedCharacterId, setNewTodoAssignedCharacterId] = useState<number | "">("")
-  const [editingTodo, setEditingTodo] = useState<number | null>(null)
+  const [activeCompanionId, setActiveCompanionId] = useState<number | null>(null)
+  const [taskEditorOpen, setTaskEditorOpen] = useState(false)
+  const [taskBeingEdited, setTaskBeingEdited] = useState<Todo | null>(null)
+  const [chatPrefill, setChatPrefill] = useState("")
 
-  const [currentView, setCurrentView] = useState<View>("dashboard")
+  const [currentView, setCurrentView] = useState<View>("home")
   const [activeCharacter, setActiveCharacter] = useState<Character | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [focusOpen, setFocusOpen] = useState(false)
@@ -199,6 +211,7 @@ export default function Dashboard() {
       setFocusMinutesTotal(profile.focus_minutes_total || 0)
       setSoundEnabled(profile.sound_enabled ?? true)
       setPersona((profile.persona as PersonaId) ?? null)
+      setActiveCompanionId(profile.active_companion_id ?? null)
       if (profile.xp_today_date === todayIso()) {
         setXpToday(profile.xp_today || 0)
         setXpTodayDate(profile.xp_today_date)
@@ -267,6 +280,7 @@ export default function Dashboard() {
         daily_goal: dailyGoal,
         sound_enabled: soundEnabled,
         persona: persona,
+        active_companion_id: activeCompanionId ?? undefined,
         onboarded: true,
       }
       const ok = await upsertUserProfile(payload)
@@ -278,7 +292,7 @@ export default function Dashboard() {
   }, [
     isProfileLoaded, userId, userInfo, totalXP, streakCount, userCompanions,
     chatHistories, todos, lastTaskCheck, lastLogin, lastCheckinTime, dailyQuests,
-    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled, persona,
+    streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled, persona, activeCompanionId,
   ])
 
   useEffect(() => {
@@ -345,6 +359,12 @@ export default function Dashboard() {
   const availableCharacters = getAvailableCharacters(userInfo.plan)
   const maxCompanions = getMaxCompanions(userInfo.plan)
   const personaHint = getPersonaPromptHint(persona)
+  const activeCompanion =
+    userCompanions.find((c) => c.id === activeCompanionId) || userCompanions[0] || null
+  const todayTodos = useMemo(
+    () => todos.filter((t) => t.scheduledDate === todayIso()),
+    [todos],
+  )
 
   const generateAITaskMessage = async (character: Character, taskText: string, category: string): Promise<string> => {
     // Rotate through different reaction angles + a random seed so the same task doesn't
@@ -391,6 +411,7 @@ export default function Dashboard() {
     primaryCharacter?: Character,
   ) => {
     const today = todayIso()
+    setHeroReaction((r) => ({ nonce: r.nonce + 1, kind: "celebrate" }))
 
     const oldTotalXp = totalXP
     const newTotalXp = totalXP + xpGained
@@ -515,35 +536,33 @@ export default function Dashboard() {
     await handleTaskCompleted(todo.text, todo.category, xpGained, assigned)
   }
 
-  const addTodo = () => {
-    if (!newTodo.trim() || userCompanions.length === 0) return
-    // Companion is optional — fall back to the first companion when none is picked.
+  const addTodo = (textArg?: string) => {
+    const text = (textArg ?? newTodo).trim()
+    if (!text || userCompanions.length === 0) return
     const assignedId =
       newTodoAssignedCharacterId === "" ? userCompanions[0].id : (newTodoAssignedCharacterId as number)
+    const today = todayIso()
+    const todayCount = todos.filter((t) => t.scheduledDate === today).length
     setTodos((prev) => [
       ...prev,
       {
         id: Date.now(),
-        text: newTodo.trim(),
+        text,
         completed: false,
         xp: XP_BY_DIFFICULTY[newTodoDifficulty],
         category: newTodoCategory,
         difficulty: newTodoDifficulty,
         assignedCharacterId: assignedId,
         recurrence: newTodoRecurrence,
+        scheduledDate: today,
+        order: todayCount,
         createdAt: new Date().toISOString(),
       },
     ])
-    // Keep category / difficulty / recurrence / companion so adding several tasks in a row
-    // doesn't force re-selecting everything each time.
     setNewTodo("")
   }
 
   const deleteTodo = (id: number) => setTodos((prev) => prev.filter((t) => t.id !== id))
-  const updateTodo = (id: number, updates: Partial<Todo>) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)))
-    setEditingTodo(null)
-  }
 
   const completeDailyQuest = async (quest: DailyQuest) => {
     setDailyQuests((prev) => prev.map((q) => (q.id === quest.id ? { ...q, completed: true } : q)))
@@ -552,6 +571,30 @@ export default function Dashboard() {
     playSound("pop")
     const character = userCompanions.find((c) => c.id === quest.characterId)
     await handleTaskCompleted(quest.text, quest.category, xp, character)
+  }
+
+  const moveTask = (taskId: number, dayIso: string | null, toIndex: number) => {
+    setTodos((prev) => moveToDay(prev, taskId, dayIso, toIndex))
+  }
+
+  const upsertTask = (task: Todo) => {
+    setTodos((prev) => {
+      const exists = prev.some((t) => t.id === task.id)
+      return exists ? prev.map((t) => (t.id === task.id ? task : t)) : [...prev, task]
+    })
+    setTaskEditorOpen(false)
+    setTaskBeingEdited(null)
+  }
+
+  const openTaskEditor = (todo: Todo | null) => {
+    setTaskBeingEdited(todo)
+    setTaskEditorOpen(true)
+  }
+
+  const openChatFromHome = (prefill: string) => {
+    if (!activeCompanion) return
+    setChatPrefill(prefill)
+    openCharacterChat(activeCompanion)
   }
 
   const handleFocusComplete = async ({ minutes, xp, taskId, characterId }: { minutes: number; xp: number; taskId?: number; characterId?: number }) => {
@@ -582,7 +625,7 @@ export default function Dashboard() {
   }
 
   const backToDashboard = () => {
-    setCurrentView("dashboard")
+    setCurrentView("home")
     setActiveCharacter(null)
   }
 
@@ -592,7 +635,7 @@ export default function Dashboard() {
       return
     }
     setUserCompanions(next)
-    setCurrentView("dashboard")
+    setCurrentView("home")
   }
 
   const updateChatHistory = (characterId: number, messages: ChatMessage[]) => {
@@ -705,8 +748,11 @@ export default function Dashboard() {
         </div>
 
         <nav className="space-y-1 mb-6">
-          <Button variant="ghost" className={`w-full justify-start ${currentView === "dashboard" ? "bg-gray-800" : ""}`} onClick={backToDashboard}>
-            <Target className="w-4 h-4 mr-2" /> Dashboard
+          <Button variant="ghost" className={`w-full justify-start ${currentView === "home" ? "bg-gray-800" : ""}`} onClick={() => setCurrentView("home")}>
+            <Target className="w-4 h-4 mr-2" /> Home
+          </Button>
+          <Button variant="ghost" className={`w-full justify-start ${currentView === "planner" ? "bg-gray-800" : ""}`} onClick={() => setCurrentView("planner")}>
+            <CalendarDays className="w-4 h-4 mr-2" /> Planner
           </Button>
           <Button variant="ghost" className="w-full justify-start" onClick={() => setFocusOpen(true)}>
             <Timer className="w-4 h-4 mr-2" /> Focus timer
@@ -777,253 +823,47 @@ export default function Dashboard() {
       )}
 
       <div className="lg:ml-64 transition-all duration-300">
-        {currentView === "dashboard" ? (
-          <div className="p-4 sm:p-6 max-w-6xl mx-auto pt-14 lg:pt-6 lg:h-screen lg:flex lg:flex-col lg:overflow-hidden">
-            <div className="flex items-center justify-between mb-4 gap-3">
-              <div className="min-w-0">
-                <h1 className="text-xl sm:text-2xl font-bold truncate">Welcome back, {userInfo.username}</h1>
-                <p className="text-sm text-gray-400">Let's make today count.</p>
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="hidden sm:block">
-                  <UserLevelBadge totalXp={totalXP} />
-                </div>
-                <Button
-                  onClick={() => setFocusOpen(true)}
-                  variant="outline"
-                  size="sm"
-                  className="hidden sm:inline-flex border-purple-500/40 bg-transparent text-white hover:bg-purple-500/10"
-                >
-                  <Timer className="w-4 h-4 mr-1" /> Focus
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                      <Avatar>
-                        <AvatarImage src={userInfo.avatar} />
-                        <AvatarFallback><User className="w-4 h-4" /></AvatarFallback>
-                      </Avatar>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56 bg-gray-900 border-gray-800 text-white" align="end">
-                    <DropdownMenuLabel>
-                      <p className="text-sm font-medium truncate">{userInfo.username}</p>
-                      <p className="text-xs text-gray-400 truncate">{userInfo.email}</p>
-                    </DropdownMenuLabel>
-                    <DropdownMenuSeparator className="bg-gray-800" />
-                    <DropdownMenuItem onClick={() => setCurrentView("profile")}>
-                      <Settings className="mr-2 h-4 w-4" /> Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setCurrentView("premium")}>
-                      <Crown className="mr-2 h-4 w-4" /> Plan: {userInfo.plan}
-                    </DropdownMenuItem>
-                    {userInfo.plan === "Free" && (
-                      <DropdownMenuItem onClick={handleUpgrade}>
-                        <CreditCard className="mr-2 h-4 w-4" /> Upgrade
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuSeparator className="bg-gray-800" />
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="mr-2 h-4 w-4" /> Log out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-
-            <div className="flex-shrink-0">
-              <StreakBanner
-                streakCount={streakCount}
-                completedToday={completedToday}
-                streakFreezes={streakFreezes}
-                plan={userInfo.plan}
-                onUseFreeze={useStreakFreezeNow}
-                hoursLeftInDay={Math.ceil(hoursLeft)}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 flex-shrink-0">
-              <Stat icon={<Zap className="w-5 h-5 text-purple-400" />} label="Total XP" value={totalXP.toString()} hint={xpMultiplier > 1 ? `${xpMultiplier.toFixed(1)}× streak bonus` : undefined} accent="purple" />
-              <Stat icon={<Flame className="w-5 h-5 text-orange-400" />} label="Streak" value={`${streakCount}d`} hint={streakCount >= 3 ? "Bonus active" : streakCount === 0 ? "Start one today" : "Keep going"} accent="orange" />
-              <Stat icon={<CheckCircle2 className="w-5 h-5 text-green-400" />} label="Tasks" value={`${completedTodos}/${todos.length}`} hint={completedToday > 0 ? `${completedToday} done today` : "Nothing done yet"} accent="green" />
-              <Stat icon={<Timer className="w-5 h-5 text-blue-400" />} label="Focus" value={`${focusMinutesTotal}m`} hint="Lifetime focused" accent="blue" />
-            </div>
-
-            <div className="grid lg:grid-cols-2 gap-6 items-stretch lg:flex-1 lg:min-h-0">
-              {/* Left: daily goal + quests */}
-              <div className="space-y-4 order-2 lg:order-1 lg:overflow-y-auto lg:min-h-0 pr-1">
-                <DailyGoalRing
-                  xpToday={xpToday}
-                  goal={dailyGoal}
-                  level={userLevelForXp(totalXP)}
-                />
-                <DailyQuests quests={dailyQuests} companions={userCompanions} onComplete={completeDailyQuest} />
-              </div>
-
-              {/* Right: today's tasks */}
-              <div className="order-1 lg:order-2 lg:min-h-0 lg:h-full">
-                <Card className="bg-gray-900 border-gray-800 text-white flex flex-col lg:h-full">
-                  <CardHeader className="pb-3 flex-shrink-0">
-                    <CardTitle className="flex items-center justify-between text-base text-white">
-                      <span>Today's tasks</span>
-                      <Badge variant="secondary" className="bg-gray-800 text-white">{completedTodos}/{todos.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 min-h-0 flex flex-col pt-1">
-                    <div className="space-y-2 mb-4 flex-shrink-0">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a task..."
-                          value={newTodo}
-                          onChange={(e) => setNewTodo(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && addTodo()}
-                          className="bg-gray-800 border-gray-700 text-white"
-                        />
-                        <Button
-                          onClick={addTodo}
-                          size="sm"
-                          disabled={!newTodo.trim() || userCompanions.length === 0}
-                          className="bg-purple-600 hover:bg-purple-700"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <Select value={newTodoCategory} onValueChange={(v) => setNewTodoCategory(v as TaskCategory)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {TASK_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                        <Select value={newTodoDifficulty} onValueChange={(v) => setNewTodoDifficulty(v as Difficulty)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Easy">Easy · 10 XP</SelectItem>
-                            <SelectItem value="Medium">Medium · 20 XP</SelectItem>
-                            <SelectItem value="Hard">Hard · 30 XP</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select value={newTodoRecurrence} onValueChange={(v) => setNewTodoRecurrence(v as any)}>
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">One-time</SelectItem>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={newTodoAssignedCharacterId === "" ? "" : String(newTodoAssignedCharacterId)}
-                          onValueChange={(v) => {
-                            if (v === "__random__") {
-                              if (userCompanions.length > 0) {
-                                setNewTodoAssignedCharacterId(
-                                  userCompanions[Math.floor(Math.random() * userCompanions.length)].id,
-                                )
-                              }
-                              return
-                            }
-                            setNewTodoAssignedCharacterId(v === "" ? "" : Number(v))
-                          }}
-                        >
-                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white text-xs">
-                            <SelectValue placeholder="Companion" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__random__">
-                              <div className="flex items-center gap-2">
-                                <Shuffle className="w-3.5 h-3.5 text-purple-400" />
-                                <span>Random</span>
-                              </div>
-                            </SelectItem>
-                            {userCompanions.map((c) => (
-                              <SelectItem key={c.id} value={String(c.id)}>
-                                <div className="flex items-center gap-2">
-                                  <img src={c.avatar} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                  <span>{c.name}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
-                    {todos.length === 0 ? (
-                      <div className="text-center py-8 text-sm text-gray-500">
-                        No tasks yet — add one to get started.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {todos.map((todo) => (
-                          <div
-                            key={todo.id}
-                            className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
-                          >
-                            {floatingXp?.id === todo.id && (
-                              <span className="animate-float-xp pointer-events-none absolute right-10 top-1 text-sm font-bold text-purple-300">
-                                +{floatingXp.xp} XP
-                              </span>
-                            )}
-                            <Checkbox
-                              id={`cb-${todo.id}`}
-                              checked={todo.completed}
-                              onCheckedChange={() =>
-                                toggleTodo(
-                                  todo.id,
-                                  typeof document !== "undefined" ? document.getElementById(`cb-${todo.id}`) : null,
-                                )
-                              }
-                            />
-                            <div className="flex-1 min-w-0">
-                              {editingTodo === todo.id ? (
-                                <Input
-                                  value={todo.text}
-                                  onChange={(e) => updateTodo(todo.id, { text: e.target.value })}
-                                  onBlur={() => setEditingTodo(null)}
-                                  onKeyDown={(e) => e.key === "Enter" && setEditingTodo(null)}
-                                  className="bg-gray-700 border-gray-600 text-white text-sm"
-                                  autoFocus
-                                />
-                              ) : (
-                                <>
-                                  <p className={`text-sm ${todo.completed ? "line-through text-gray-500" : "text-white"}`}>
-                                    {todo.text}
-                                  </p>
-                                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                                    <Badge variant="outline" className="text-[10px] text-gray-400 border-gray-700 px-1.5 py-0">{todo.category}</Badge>
-                                    <Badge variant="outline" className="text-[10px] text-gray-400 border-gray-700 px-1.5 py-0">{todo.difficulty}</Badge>
-                                    {todo.recurrence && todo.recurrence !== "none" && (
-                                      <Badge variant="outline" className="text-[10px] text-blue-300 border-blue-700/50 px-1.5 py-0">{todo.recurrence}</Badge>
-                                    )}
-                                    {todo.assignedCharacterId && (
-                                      <Badge variant="outline" className="text-[10px] text-white border-purple-700/50 px-1.5 py-0">
-                                        {userCompanions.find((c) => c.id === todo.assignedCharacterId)?.name || "?"}
-                                      </Badge>
-                                    )}
-                                    <span className="text-[10px] text-purple-400">+{Math.floor(todo.xp * xpMultiplier)} XP</span>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => setEditingTodo(todo.id)} className="p-1 h-7 w-7">
-                                <Edit className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => deleteTodo(todo.id)} className="p-1 h-7 w-7 text-red-400">
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </div>
+        {currentView === "home" ? (
+          <HomeView
+            username={userInfo.username}
+            totalXP={totalXP}
+            streakCount={streakCount}
+            completedToday={completedToday}
+            streakFreezes={streakFreezes}
+            plan={userInfo.plan}
+            hoursLeft={hoursLeft}
+            onUseFreeze={useStreakFreezeNow}
+            focusMinutesTotal={focusMinutesTotal}
+            xpToday={xpToday}
+            dailyGoal={dailyGoal}
+            userLevel={userLevelForXp(totalXP)}
+            todayTodos={todayTodos}
+            todosDoneCount={todayTodos.filter((t) => t.completed).length}
+            todosTotalCount={todayTodos.length}
+            dailyQuests={dailyQuests}
+            companions={userCompanions}
+            activeCompanion={activeCompanion}
+            heroReaction={heroReaction}
+            onSelectCompanion={(id) => setActiveCompanionId(id)}
+            onToggleTodo={toggleTodo}
+            onQuickAdd={(text) => addTodo(text)}
+            onCompleteQuest={completeDailyQuest}
+            onOpenChat={openChatFromHome}
+            onOpenFocus={() => setFocusOpen(true)}
+            floatingXp={floatingXp}
+            setSidebarOpen={setSidebarOpen}
+          />
+        ) : currentView === "planner" ? (
+          <WeekPlanner
+            todos={todos}
+            companions={userCompanions}
+            onMoveTask={moveTask}
+            onToggle={toggleTodo}
+            onEdit={(todo) => openTaskEditor(todo)}
+            onAdd={() => openTaskEditor(null)}
+            sidebarOpen={sidebarOpen}
+            setSidebarOpen={setSidebarOpen}
+          />
         ) : currentView === "characters" ? (
           <CharacterSelection
             allCharacters={availableCharacters}
@@ -1068,6 +908,7 @@ export default function Dashboard() {
             userPlan={userInfo.plan}
             userInfo={userInfo}
             personaHint={personaHint}
+            initialDraft={chatPrefill}
           />
         ) : null}
       </div>
@@ -1076,6 +917,15 @@ export default function Dashboard() {
         celebration={celebrationQueue[0] ?? null}
         onDismiss={() => setCelebrationQueue((prev) => prev.slice(1))}
         playSound={playSound}
+      />
+      <TaskEditor
+        open={taskEditorOpen}
+        initial={taskBeingEdited}
+        defaultDate={todayIso()}
+        companions={userCompanions}
+        onClose={() => { setTaskEditorOpen(false); setTaskBeingEdited(null) }}
+        onSave={upsertTask}
+        onDelete={(id) => { deleteTodo(id); setTaskEditorOpen(false); setTaskBeingEdited(null) }}
       />
       <FocusTimer
         open={focusOpen}
@@ -1086,34 +936,5 @@ export default function Dashboard() {
         playSound={playSound}
       />
     </div>
-  )
-}
-
-function Stat({
-  icon, label, value, hint, accent,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: string
-  hint?: string
-  accent: "purple" | "orange" | "green" | "blue"
-}) {
-  const accentText = {
-    purple: "text-purple-400",
-    orange: "text-orange-400",
-    green: "text-green-400",
-    blue: "text-blue-400",
-  }[accent]
-  return (
-    <Card className="bg-gray-900 border-gray-800 text-white">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-[11px] text-gray-500">{label}</p>
-          {icon}
-        </div>
-        <p className={`text-xl sm:text-2xl font-bold ${accentText}`}>{value}</p>
-        {hint && <p className="text-[10px] text-gray-500 mt-0.5 truncate">{hint}</p>}
-      </CardContent>
-    </Card>
   )
 }
