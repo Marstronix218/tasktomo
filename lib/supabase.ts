@@ -109,6 +109,17 @@ export async function upsertUserProfile(profile: UserProfile) {
   return true
 }
 
+export async function submitFeedback(userId: string, email: string, message: string) {
+  const { error } = await supabase.from("feedback").insert({ user_id: userId, email, message })
+
+  if (error) {
+    console.error("Error submitting feedback:", error)
+    return false
+  }
+
+  return true
+}
+
 export async function deleteUserProfile(userId: string) {
   const { error } = await supabase.from("user_profiles").delete().eq("user_id", userId)
 

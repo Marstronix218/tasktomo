@@ -79,6 +79,7 @@ import {
 import {
   deleteUserProfile,
   getUserProfile,
+  submitFeedback,
   supabase,
   upsertUserProfile,
   type UserProfile as SupabaseUserProfile,
@@ -1097,7 +1098,15 @@ export default function Dashboard() {
             onUpdateUsername={updateUsername}
             onCancelPremium={handleCancelPremium}
             onDeleteAccount={handleDeleteAccount}
-            onSendFeedback={() => setSystemMessages((p) => [...p, "System: Thanks for the feedback!"])}
+            onSendFeedback={async (text) => {
+              const ok = await submitFeedback(userId, userInfo.email, text)
+              setSystemMessages((p) => [
+                ...p,
+                ok
+                  ? "System: Thanks for the feedback! 💜"
+                  : "System: Couldn't send feedback — please try again.",
+              ])
+            }}
             soundEnabled={soundEnabled}
             onToggleSound={(enabled) => setSoundEnabled(enabled)}
             persona={persona}

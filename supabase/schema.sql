@@ -41,6 +41,26 @@ alter table public.user_profiles add column if not exists sound_enabled boolean 
 alter table public.user_profiles add column if not exists persona text;
 alter table public.user_profiles add column if not exists last_completion_date text;
 
+-- Tester/user feedback from the in-app form (Profile → Send Feedback).
+create table if not exists public.feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  email text,
+  message text not null,
+  created_at timestamptz not null default timezone('utc'::text, now())
+);
+
+alter table public.feedback enable row level security;
+
+-- Users can only submit as themselves; nobody can read via the anon client
+-- (view submissions in the Supabase dashboard or with the service role key).
+drop policy if exists "users can insert own feedback" on public.feedback;
+create policy "users can insert own feedback"
+on public.feedback
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
 create or replace function public.set_user_profiles_updated_at()
 returns trigger
 language plpgsql
