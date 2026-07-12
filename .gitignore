@@ -154,6 +154,9 @@ out/
 
 # Coding Tools
 CLAUDE.md
+AGENTS.md
+.claude
+.codex
 claudework.md
 # Superpowers brainstorm artifacts
 .superpowers/

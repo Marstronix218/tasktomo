@@ -111,6 +111,8 @@ export function dailyQuestsToRecords(quests: DailyQuest[]): DailyQuestRecord[] {
     xp: q.xp,
     character_id: q.characterId,
     completed: q.completed,
+    custom: q.custom,
+    hidden: q.hidden,
   }))
 }
 
@@ -124,5 +126,7 @@ export function dailyQuestsFromRecords(records: DailyQuestRecord[] | undefined):
     xp: r.xp,
     characterId: r.character_id,
     completed: r.completed,
+    custom: r.custom,
+    hidden: r.hidden,
   }))
 }

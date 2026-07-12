@@ -61,6 +61,10 @@ export interface DailyQuest {
   xp: number
   characterId: number
   completed: boolean
+  /** User-created quest (fully removable). */
+  custom?: boolean
+  /** Deleted generated quest — record is kept so it doesn't regenerate the same day. */
+  hidden?: boolean
 }
 
 export const XP_BY_DIFFICULTY: Record<Difficulty, number> = {

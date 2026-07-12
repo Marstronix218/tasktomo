@@ -11,6 +11,7 @@ import { Check, ArrowRight, Crown } from "lucide-react"
 import { ALL_CHARACTERS, FREE_PLAN_CHARACTER_LIMIT, FREE_PLAN_MAX_COMPANIONS } from "@/lib/characters"
 import { PERSONAS, type PersonaId } from "@/lib/personas"
 import { supabase, upsertUserProfile, getUserProfile } from "@/lib/supabase"
+import { todayIso } from "@/lib/date-utils"
 import type { Character } from "@/lib/types"
 
 const STEPS = ["Welcome", "Name", "You", "Crew", "Done"] as const
@@ -60,7 +61,7 @@ export default function OnboardPage() {
 
   const finish = async () => {
     setSaving(true)
-    const today = new Date().toDateString()
+    const today = todayIso()
     await upsertUserProfile({
       user_id: userId,
       username: username.trim() || `User${Math.floor(Math.random() * 10000)}`,
@@ -74,6 +75,7 @@ export default function OnboardPage() {
       tasks: [],
       last_task_check: today,
       last_login: today,
+      last_completion_date: null,
       message_count: {},
       persona,
       onboarded: true,

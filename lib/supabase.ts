@@ -50,6 +50,8 @@ export interface DailyQuestRecord {
   xp: number
   character_id: number
   completed: boolean
+  custom?: boolean
+  hidden?: boolean
 }
 
 export interface UserProfile {
@@ -67,6 +69,8 @@ export interface UserProfile {
   tasks: TaskData[]
   last_task_check: string
   last_login?: string
+  /** Last local day (YYYY-MM-DD) the user completed a task/quest/focus session; drives the streak. */
+  last_completion_date?: string | null
   last_checkin_time?: number
   daily_quests?: DailyQuestRecord[]
   streak_freezes?: number

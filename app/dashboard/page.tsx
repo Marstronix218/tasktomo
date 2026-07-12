@@ -63,7 +63,8 @@ import { dailyGoalForLevel, userLevelForXp } from "@/lib/leveling"
 import { buildCelebrations, type Celebration } from "@/lib/celebrations"
 import { fireConfettiAt } from "@/lib/confetti"
 import { useSound } from "@/hooks/use-sound"
-import { diffDaysIso, hoursLeftInDay, todayIso } from "@/lib/date-utils"
+import { hoursLeftInDay, normalizeIsoDate, todayIso } from "@/lib/date-utils"
+import { rolloverStreak, streakAfterCompletion } from "@/lib/streak"
 import {
   chatHistoryFromStored,
   chatHistoryToSerializable,
@@ -119,6 +120,7 @@ export default function Dashboard() {
   const celebrationKeyRef = useRef(0)
 
   const [streakCount, setStreakCount] = useState(0)
+  const [lastCompletionDate, setLastCompletionDate] = useState<string | null>(null)
   const [totalXP, setTotalXP] = useState(0)
   const [lastTaskCheck, setLastTaskCheck] = useState(todayIso())
   const [lastLogin, setLastLogin] = useState(todayIso())
@@ -195,6 +197,12 @@ export default function Dashboard() {
       }))
       setTotalXP(profile.total_xp || 0)
       setStreakCount(profile.streak_count || 0)
+      // Migration: profiles from before last_completion_date approximate it with
+      // their last login so an existing streak isn't wiped on first load.
+      setLastCompletionDate(
+        profile.last_completion_date ??
+          ((profile.streak_count || 0) > 0 ? normalizeIsoDate(profile.last_login) : null),
+      )
       setStreakFreezes(profile.streak_freezes ?? 1)
       setFocusMinutesTotal(profile.focus_minutes_total || 0)
       setSoundEnabled(profile.sound_enabled ?? true)
@@ -208,8 +216,8 @@ export default function Dashboard() {
         setXpTodayDate(todayIso())
         setDailyGoal(dailyGoalForLevel(userLevelForXp(profile.total_xp || 0)))
       }
-      setLastTaskCheck(profile.last_task_check || todayIso())
-      setLastLogin(profile.last_login || todayIso())
+      setLastTaskCheck(normalizeIsoDate(profile.last_task_check) || todayIso())
+      setLastLogin(normalizeIsoDate(profile.last_login) || todayIso())
       setLastCheckinTime(profile.last_checkin_time || 0)
       setDailyQuests(dailyQuestsFromRecords(profile.daily_quests))
 
@@ -258,6 +266,7 @@ export default function Dashboard() {
         last_task_check: lastTaskCheck,
         message_count: userInfo.messageCount,
         last_login: lastLogin,
+        last_completion_date: lastCompletionDate,
         last_checkin_time: lastCheckinTime,
         daily_quests: dailyQuestsToRecords(dailyQuests),
         streak_freezes: streakFreezes,
@@ -276,7 +285,7 @@ export default function Dashboard() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     }
   }, [
-    isProfileLoaded, userId, userInfo, totalXP, streakCount, userCompanions,
+    isProfileLoaded, userId, userInfo, totalXP, streakCount, lastCompletionDate, userCompanions,
     chatHistories, todos, lastTaskCheck, lastLogin, lastCheckinTime, dailyQuests,
     streakFreezes, focusMinutesTotal, xpToday, xpTodayDate, dailyGoal, soundEnabled, persona,
   ])
@@ -292,15 +301,14 @@ export default function Dashboard() {
       }
       return
     }
-    const daysSince = diffDaysIso(today, lastLogin)
-    if (daysSince > 1) {
-      if (streakFreezes > 0) {
-        setStreakFreezes((n) => n - 1)
-        setSystemMessages((p) => [...p, `System: Streak Freeze used — your ${streakCount}-day streak is safe. (${streakFreezes - 1} left)`])
-      } else if (streakCount > 0) {
-        setStreakCount(0)
-        setSystemMessages((p) => [...p, "System: Streak reset. Today's a fresh start 🌱"])
-      }
+    const roll = rolloverStreak({ streakCount, streakFreezes, lastCompletionDate, today })
+    if (roll.freezeUsed) {
+      setStreakFreezes(roll.streakFreezes)
+      setLastCompletionDate(roll.lastCompletionDate)
+      setSystemMessages((p) => [...p, `System: Streak Freeze used — your ${streakCount}-day streak is safe. (${roll.streakFreezes} left)`])
+    } else if (roll.streakReset) {
+      setStreakCount(0)
+      setSystemMessages((p) => [...p, "System: Streak reset. Today's a fresh start 🌱"])
     }
     setTodos((prev) =>
       prev.map((t) =>
@@ -397,11 +405,10 @@ export default function Dashboard() {
     setTotalXP(newTotalXp)
 
     const oldStreak = streakCount
-    let newStreak = streakCount
-    if (lastLogin !== today || completedToday === 0) {
-      newStreak = streakCount + 1
-      setStreakCount(newStreak)
-    }
+    const bumpedStreak = streakAfterCompletion(streakCount, lastCompletionDate, today)
+    const newStreak = bumpedStreak ?? streakCount
+    if (bumpedStreak !== null) setStreakCount(bumpedStreak)
+    setLastCompletionDate(today)
     setLastLogin(today)
 
     const oldXpToday = xpTodayDate === today ? xpToday : 0
@@ -545,6 +552,40 @@ export default function Dashboard() {
     setEditingTodo(null)
   }
 
+  const addDailyQuest = (text: string, category: TaskCategory) => {
+    const trimmed = text.trim()
+    if (!trimmed || userCompanions.length === 0) return
+    const today = todayIso()
+    const character = userCompanions[Math.floor(Math.random() * userCompanions.length)]
+    setDailyQuests((prev) => [
+      ...prev,
+      {
+        id: `custom-${today}-${Date.now()}`,
+        date: today,
+        text: trimmed,
+        category,
+        xp: 10,
+        characterId: character.id,
+        completed: false,
+        custom: true,
+      },
+    ])
+  }
+
+  const updateDailyQuestText = (id: string, text: string) => {
+    setDailyQuests((prev) => prev.map((q) => (q.id === id ? { ...q, text } : q)))
+  }
+
+  const removeDailyQuest = (id: string) => {
+    // Generated quests are only hidden — their record must survive the day so the
+    // seeding effect doesn't immediately regenerate them. Custom quests just go.
+    setDailyQuests((prev) =>
+      prev
+        .map((q) => (q.id === id ? (q.custom ? null : { ...q, hidden: true }) : q))
+        .filter((q): q is DailyQuest => q !== null),
+    )
+  }
+
   const completeDailyQuest = async (quest: DailyQuest) => {
     setDailyQuests((prev) => prev.map((q) => (q.id === quest.id ? { ...q, completed: true } : q)))
     const xp = Math.floor(quest.xp * xpMultiplier)
@@ -565,6 +606,8 @@ export default function Dashboard() {
   const useStreakFreezeNow = () => {
     if (streakFreezes <= 0) return
     setStreakFreezes((n) => n - 1)
+    // Mark today as covered so tomorrow's first completion continues the chain.
+    setLastCompletionDate(todayIso())
     setSystemMessages((p) => [...p, `System: Streak Freeze used — streak safe for today.`])
     if (completedToday === 0) setStreakCount((p) => Math.max(p, 1))
   }
@@ -857,7 +900,14 @@ export default function Dashboard() {
                   goal={dailyGoal}
                   level={userLevelForXp(totalXP)}
                 />
-                <DailyQuests quests={dailyQuests} companions={userCompanions} onComplete={completeDailyQuest} />
+                <DailyQuests
+                  quests={dailyQuests}
+                  companions={userCompanions}
+                  onComplete={completeDailyQuest}
+                  onAdd={addDailyQuest}
+                  onUpdateText={updateDailyQuestText}
+                  onRemove={removeDailyQuest}
+                />
               </div>
 
               {/* Right: today's tasks */}
