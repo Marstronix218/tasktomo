@@ -17,7 +17,7 @@ End-to-end checklist to go from this repo to a live, paid product.
 ## 2. Stripe (subscriptions)
 
 1. Create a Stripe account, switch to test mode for now.
-2. Create a Product called "Premium" with two prices: $9 / month and $72 / year. Copy the price IDs.
+2. Create a Product called "Premium" with two prices: $15 / month and $100 / year. Copy the price IDs.
 3. **Webhook**: Stripe Dashboard → Webhooks → Add endpoint. URL = `https://tasktomo.com/api/stripe/webhook`. Send these events:
    - `checkout.session.completed`
    - `customer.subscription.updated`
@@ -91,7 +91,7 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 - Supabase: free tier covers ~50k MAU for this workload.
 - Stripe: 2.9% + 30¢ per successful charge.
 
-At $9/mo with $0.50/user OpenAI + Stripe fees, gross margin ~85%.
+At $15/mo with $0.50/user OpenAI + Stripe fees, gross margin improves materially versus the original plan.
 
 ## 8. Growth knobs already built in
 

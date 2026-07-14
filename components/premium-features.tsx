@@ -100,9 +100,9 @@ export default function PremiumFeatures({ userPlan, onUpgrade }: PremiumFeatures
               <p className="text-gray-300 text-sm mb-4">
                 Unlock all characters, unlimited messaging, group chats, and create your own custom companion!
               </p>
-              <Button onClick={onUpgrade} className="w-full bg-purple-600 hover:bg-purple-700">
+              <Button disabled className="w-full bg-purple-600 opacity-70">
                 <Crown className="w-4 h-4 mr-2" />
-                Upgrade for $15/month
+                Coming soon — $15/month
               </Button>
             </div>
           )}

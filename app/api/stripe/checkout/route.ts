@@ -7,8 +7,8 @@ import { STRIPE_PLANS, getStripeKeys, stripeIsConfigured } from "@/lib/stripe"
  *
  * Required env vars (add at deploy time):
  *   STRIPE_SECRET_KEY        — sk_live_... or sk_test_...
- *   STRIPE_PRICE_ID_MONTHLY  — price_... for $9/mo plan
- *   STRIPE_PRICE_ID_YEARLY   — price_... for $72/yr plan
+ *   STRIPE_PRICE_ID_MONTHLY  — price_... for $15/mo plan
+ *   STRIPE_PRICE_ID_YEARLY   — price_... for $100/yr plan
  *   NEXT_PUBLIC_SITE_URL     — public site URL for return URLs (e.g. https://tasktomo.com)
  *
  * Without these, the route returns a graceful 503 so the UI can show a message
@@ -18,8 +18,7 @@ export async function POST(req: NextRequest) {
   if (!stripeIsConfigured()) {
     return NextResponse.json(
       {
-        error:
-          "Payments aren't configured yet. Add STRIPE_SECRET_KEY and price IDs to enable checkout.",
+        error: "Premium checkout is coming soon.",
       },
       { status: 503 },
     )

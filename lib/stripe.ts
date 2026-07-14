@@ -2,13 +2,13 @@ export const STRIPE_PLANS = {
   monthly: {
     priceIdEnv: "STRIPE_PRICE_ID_MONTHLY",
     label: "Premium Monthly",
-    amountCents: 900,
+    amountCents: 1500,
     interval: "month" as const,
   },
   yearly: {
     priceIdEnv: "STRIPE_PRICE_ID_YEARLY",
     label: "Premium Yearly",
-    amountCents: 7200,
+    amountCents: 10000,
     interval: "year" as const,
   },
 }

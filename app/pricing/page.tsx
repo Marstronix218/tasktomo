@@ -1,13 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Check, Crown, ArrowLeft, ShieldCheck } from "lucide-react"
-import { supabase } from "@/lib/supabase"
+import { STRIPE_PLANS } from "@/lib/stripe"
 
 const FREE_FEATURES = [
   "5 of 10 AI companions",
@@ -29,44 +27,8 @@ const PREMIUM_FEATURES = [
 ]
 
 export default function PricingPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState<"monthly" | "yearly" | null>(null)
-  const [isSignedIn, setIsSignedIn] = useState(false)
-  const [errorMessage, setErrorMessage] = useState("")
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsSignedIn(!!session?.user)
-    })
-  }, [])
-
-  const handleCheckout = async (plan: "monthly" | "yearly") => {
-    if (!isSignedIn) {
-      router.push("/login?signup=1")
-      return
-    }
-    setLoading(plan)
-    setErrorMessage("")
-    try {
-      const res = await fetch("/api/stripe/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setErrorMessage(data.error || "Could not start checkout.")
-        return
-      }
-      if (data.url) {
-        window.location.href = data.url
-      }
-    } catch (e) {
-      setErrorMessage("Network error. Try again.")
-    } finally {
-      setLoading(null)
-    }
-  }
+  const monthlyPrice = STRIPE_PLANS.monthly.amountCents / 100
+  const yearlyPrice = STRIPE_PLANS.yearly.amountCents / 100
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -97,9 +59,9 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href={isSignedIn ? "/dashboard" : "/login?signup=1"}>
+              <Link href="/login?signup=1">
                 <Button variant="outline" className="w-full border-gray-700 bg-transparent text-white">
-                  {isSignedIn ? "Open dashboard" : "Start free"}
+                  Start free
                 </Button>
               </Link>
             </CardContent>
@@ -115,10 +77,10 @@ export default function PricingPage() {
               <p className="text-sm text-purple-900">For people who actually want to ship.</p>
               <div className="my-5">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-bold">$9</span>
+                  <span className="text-4xl font-bold">${monthlyPrice}</span>
                   <span className="text-purple-900 text-sm"> / month</span>
                 </div>
-                <p className="text-xs text-purple-800 mt-1">or $72 / year — save $36</p>
+                <p className="text-xs text-purple-800 mt-1">or ${yearlyPrice} / year — save $80</p>
               </div>
               <ul className="space-y-2.5 mb-6">
                 {PREMIUM_FEATURES.map((f) => (
@@ -128,25 +90,19 @@ export default function PricingPage() {
                 ))}
               </ul>
               <div className="space-y-2">
-                <Button
-                  onClick={() => handleCheckout("monthly")}
-                  disabled={loading !== null}
-                  className="w-full bg-white text-purple-700 hover:bg-gray-100"
-                >
-                  {loading === "monthly" ? "Loading..." : "Upgrade — $9 / month"}
+                <Button disabled className="w-full bg-white text-purple-700 opacity-70">
+                  Coming soon — ${monthlyPrice} / month
                 </Button>
                 <Button
-                  onClick={() => handleCheckout("yearly")}
-                  disabled={loading !== null}
+                  disabled
                   variant="outline"
-                  className="w-full border-purple-500/40 bg-transparent text-purple-950 hover:bg-purple-900/10"
+                  className="w-full border-purple-500/40 bg-transparent text-purple-950 opacity-70"
                 >
-                  {loading === "yearly" ? "Loading..." : "Save 33% — $72 / year"}
+                  Coming soon — ${yearlyPrice} / year
                 </Button>
               </div>
-              {errorMessage && <p className="text-xs text-red-700 mt-2">{errorMessage}</p>}
               <p className="text-[11px] text-purple-900/80 mt-4 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" /> Cancel anytime · Secured by Stripe
+                <ShieldCheck className="w-3 h-3" /> Checkout coming soon
               </p>
             </CardContent>
           </Card>
