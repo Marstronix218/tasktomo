@@ -246,6 +246,7 @@ export default function UserProfile({
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
+              id="feedback"
               placeholder="Share your thoughts, suggestions, or report issues..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}

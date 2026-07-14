@@ -1,12 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+// When BUTTERBASE_API_KEY is set, chat goes through the Butterbase AI gateway
+// (OpenAI-compatible, uses Butterbase credits). Otherwise it falls back to OpenAI direct.
+const BUTTERBASE_URL = "https://api.butterbase.ai/v1/chat/completions"
+const OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+
 export async function POST(request: NextRequest) {
   try {
-    // Check if API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      console.error("OpenAI API key not configured")
+    const butterbaseKey = process.env.BUTTERBASE_API_KEY
+    const openaiKey = process.env.OPENAI_API_KEY
+
+    if (!butterbaseKey && !openaiKey) {
+      console.error("No AI provider key configured")
       return NextResponse.json(
-        { error: "OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables." },
+        { error: "No AI provider configured. Add BUTTERBASE_API_KEY or OPENAI_API_KEY to your environment variables." },
         { status: 500 }
       )
     }
@@ -24,13 +31,22 @@ export async function POST(request: NextRequest) {
     // Default model is configurable via the OPENAI_MODEL env var (falls back to gpt-4.1-nano,
     // a fast non-reasoning chat model). A model explicitly passed in the request body still
     // takes precedence.
-    const model = body.model || process.env.OPENAI_MODEL || "gpt-4.1-nano"
+    let model = body.model || process.env.OPENAI_MODEL || "gpt-4.1-nano"
     const maxTokens = body.max_tokens || 150
     const temperature = body.temperature ?? 0.8
 
+    // Butterbase model IDs are provider-prefixed (e.g. "openai/gpt-4.1-nano",
+    // "anthropic/claude-haiku-4.5"). Bare OpenAI names get the prefix added; an ID that
+    // already contains a "/" is passed through untouched.
+    if (butterbaseKey && !model.includes("/")) {
+      model = `openai/${model}`
+    }
+
     // The gpt-5 / o-series reasoning models reject the legacy `max_tokens` param and only
-    // accept the default temperature, so build the payload accordingly.
-    const isReasoningModel = /^(gpt-5|o\d)/.test(model)
+    // accept the default temperature, so build the payload accordingly. (Match against the
+    // bare model name so the provider prefix doesn't hide it.)
+    const bareModel = model.split("/").pop() || model
+    const isReasoningModel = /^(gpt-5|o\d)/.test(bareModel)
     const payload: Record<string, unknown> = {
       model,
       messages: body.messages,
@@ -48,20 +64,23 @@ export async function POST(request: NextRequest) {
       payload.temperature = temperature
     }
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    const url = butterbaseKey ? BUTTERBASE_URL : OPENAI_URL
+    const apiKey = butterbaseKey || openaiKey
+
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
     })
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error("OpenAI API Error:", errorData)
+      console.error("AI gateway error:", errorData)
       return NextResponse.json(
-        { error: `OpenAI API error: ${errorData.error?.message || response.statusText}` },
+        { error: `AI gateway error: ${errorData.error?.message || response.statusText}` },
         { status: response.status }
       )
     }
@@ -69,7 +88,7 @@ export async function POST(request: NextRequest) {
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error("OpenAI API Error:", error)
+    console.error("AI gateway error:", error)
     return NextResponse.json(
       { error: "Failed to process request" },
       { status: 500 }

@@ -94,7 +94,9 @@ export default function ChatInterface({
     }
   }, [character.id, chatHistory.length, character.name, character.description, onUpdateChatHistory])
 
-  useEffect(scrollToBottom, [messages])
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
   const generateAIResponse = async (userText: string): Promise<string> => {
     try {

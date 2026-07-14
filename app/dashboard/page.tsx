@@ -93,6 +93,7 @@ export default function Dashboard() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const justUpgraded = searchParams.get("upgraded") === "1"
+  const profileViewRequested = searchParams.get("view") === "profile"
 
   const [userId, setUserId] = useState("")
   const [isProfileLoaded, setIsProfileLoaded] = useState(false)
@@ -242,6 +243,29 @@ export default function Dashboard() {
       subscription.unsubscribe()
     }
   }, [router])
+
+  useEffect(() => {
+    if (profileViewRequested && isProfileLoaded) {
+      setCurrentView("profile")
+    }
+  }, [profileViewRequested, isProfileLoaded])
+
+  useEffect(() => {
+    if (!isProfileLoaded || currentView !== "profile") return
+    if (typeof window === "undefined" || window.location.hash !== "#feedback") return
+
+    const timer = window.setTimeout(() => {
+      const feedbackField = document.getElementById("feedback") as HTMLTextAreaElement | null
+      if (feedbackField) {
+        feedbackField.scrollIntoView({ behavior: "smooth", block: "center" })
+        feedbackField.focus()
+      }
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [currentView, isProfileLoaded])
 
   useEffect(() => {
     if (justUpgraded && isProfileLoaded) {
