@@ -107,7 +107,7 @@ export default function OnboardPage() {
         </div>
 
         {step === 0 && (
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-gray-900 border-gray-800 text-white">
             <CardContent className="p-8 text-center space-y-4">
               <h1 className="text-3xl font-bold">Welcome aboard 👋</h1>
               <p className="text-gray-400 max-w-md mx-auto">
@@ -122,7 +122,7 @@ export default function OnboardPage() {
         )}
 
         {step === 1 && (
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-gray-900 border-gray-800 text-white">
             <CardContent className="p-8 space-y-4">
               <h2 className="text-2xl font-bold">What should your crew call you?</h2>
               <p className="text-sm text-gray-400">They'll use this when they cheer you on, roast you, etc.</p>
@@ -149,7 +149,7 @@ export default function OnboardPage() {
         )}
 
         {step === 2 && (
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-gray-900 border-gray-800 text-white">
             <CardContent className="p-6 sm:p-8 space-y-4">
               <div>
                 <h2 className="text-2xl font-bold">What best describes you?</h2>
@@ -197,7 +197,7 @@ export default function OnboardPage() {
         )}
 
         {step === 3 && (
-          <Card className="bg-gray-900 border-gray-800">
+          <Card className="bg-gray-900 border-gray-800 text-white">
             <CardContent className="p-6 sm:p-8 space-y-4">
               <div>
                 <h2 className="text-2xl font-bold">Pick your starting crew</h2>
