@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   CreditCard,
   Crown,
   Edit,
@@ -46,6 +47,7 @@ import PremiumFeatures from "@/components/premium-features"
 import StreakBanner from "@/components/streak-banner"
 import UserProfilePanel from "@/components/user-profile"
 import CelebrationOverlay from "@/components/celebration-overlay"
+import NextStepNudge from "@/components/next-step-nudge"
 import DailyGoalRing from "@/components/daily-goal-ring"
 import UserLevelBadge from "@/components/user-level-badge"
 
@@ -55,7 +57,8 @@ import { humanizeReply } from "@/lib/openai"
 import {
   getBondLevelMessage,
   getLevelUpMessage,
-  getMissedTasksMessage,
+  getNextStepNudge,
+  getRecoveryMessage,
   getTaskCompletionMessage,
 } from "@/lib/character_reactions"
 import { generateDailyQuests } from "@/lib/daily-quests"
@@ -63,8 +66,9 @@ import { dailyGoalForLevel, userLevelForXp } from "@/lib/leveling"
 import { buildCelebrations, type Celebration } from "@/lib/celebrations"
 import { fireConfettiAt } from "@/lib/confetti"
 import { useSound } from "@/hooks/use-sound"
-import { hoursLeftInDay, normalizeIsoDate, todayIso } from "@/lib/date-utils"
+import { addDaysIso, hoursLeftInDay, normalizeIsoDate, todayIso } from "@/lib/date-utils"
 import { rolloverStreak, streakAfterCompletion } from "@/lib/streak"
+import { isTodoShownOnDate } from "@/lib/task-dates"
 import {
   chatHistoryFromStored,
   chatHistoryToSerializable,
@@ -118,6 +122,10 @@ export default function Dashboard() {
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [persona, setPersona] = useState<PersonaId | null>(null)
   const [celebrationQueue, setCelebrationQueue] = useState<(Celebration & { key: number })[]>([])
+  // Next-step planning nudge: shown when the user clears their last task of the day.
+  // At most one per day (session-scoped) — the goal is one planned task, not nagging.
+  const [nudge, setNudge] = useState<{ character: Character; message: string } | null>(null)
+  const [lastNudgeDate, setLastNudgeDate] = useState("")
   const [floatingXp, setFloatingXp] = useState<{ id: number; xp: number } | null>(null)
   const celebrationKeyRef = useRef(0)
 
@@ -135,6 +143,7 @@ export default function Dashboard() {
   const [newTodoRecurrence, setNewTodoRecurrence] = useState<"none" | "daily" | "weekly">("none")
   const [newTodoAssignedCharacterId, setNewTodoAssignedCharacterId] = useState<number | "">("")
   const [editingTodo, setEditingTodo] = useState<number | null>(null)
+  const [taskDay, setTaskDay] = useState<"today" | "tomorrow">("today")
 
   const [currentView, setCurrentView] = useState<View>("dashboard")
   const [activeCharacter, setActiveCharacter] = useState<Character | null>(null)
@@ -187,7 +196,9 @@ export default function Dashboard() {
       const loadedTodos = tasksToTodos(profile.tasks)
       const companions = hydrateCompanions(profile, loadedHistory)
 
-      setTodos(loadedTodos)
+      // Legacy tasks predate due dates. Keep them visible in today's list and let
+      // the next profile sync persist the migration.
+      setTodos(loadedTodos.map((todo) => ({ ...todo, dueDate: todo.dueDate ?? todayIso() })))
       setChatHistories(loadedHistory)
       if (companions.length > 0) setUserCompanions(companions)
       setUserInfo((p) => ({
@@ -333,12 +344,25 @@ export default function Dashboard() {
       setSystemMessages((p) => [...p, `System: Streak Freeze used — your ${streakCount}-day streak is safe. (${roll.streakFreezes} left)`])
     } else if (roll.streakReset) {
       setStreakCount(0)
-      setSystemMessages((p) => [...p, "System: Streak reset. Today's a fresh start 🌱"])
+      // Recovery, not guilt: the companion lowers re-entry friction after a missed day.
+      const reactor = userCompanions[0]
+      setSystemMessages((p) => [
+        ...p,
+        reactor ? `${reactor.name}: ${getRecoveryMessage(reactor)}` : "System: Today's a fresh start 🌱",
+      ])
     }
     setTodos((prev) =>
       prev.map((t) =>
         t.recurrence && t.recurrence !== "none" && t.completed
-          ? { ...t, completed: false, completedAt: undefined }
+          ? {
+              ...t,
+              completed: false,
+              completedAt: undefined,
+              dueDate:
+                t.recurrence === "weekly"
+                  ? addDaysIso(t.dueDate ?? today, 7)
+                  : today,
+            }
           : t,
       ),
     )
@@ -349,24 +373,22 @@ export default function Dashboard() {
     setLastLogin(today)
   }, [isProfileLoaded, userCompanions])
 
+  // Note: the old missed-tasks punishment (bond decay + guilt messages) was removed —
+  // recovery after a missed day is handled by getRecoveryMessage in the rollover effect.
   useEffect(() => {
     if (!isProfileLoaded) return
     const today = todayIso()
     if (lastTaskCheck === today) return
-    const incompleteTasks = todos.filter((t) => !t.completed).length
-    if (incompleteTasks >= 3) {
-      setUserCompanions((prev) =>
-        prev.map((c) => ({ ...c, bondLevel: Math.max(c.bondLevel - 0.3, 0) })),
-      )
-      userCompanions.forEach((c) => {
-        const msg = getMissedTasksMessage(c, incompleteTasks)
-        setSystemMessages((p) => [...p, `${c.name}: ${msg}`])
-      })
-    }
     setLastTaskCheck(today)
-  }, [isProfileLoaded, lastTaskCheck, todos, userCompanions])
+  }, [isProfileLoaded, lastTaskCheck])
 
-  const completedTodos = todos.filter((t) => t.completed).length
+  const today = todayIso()
+  const tomorrow = addDaysIso(today, 1)
+  const selectedTaskDate = taskDay === "today" ? today : tomorrow
+  const todayTodos = todos.filter((todo) => isTodoShownOnDate(todo, today, today))
+  const visibleTodos = todos.filter((todo) => isTodoShownOnDate(todo, selectedTaskDate, today))
+  const completedTodos = todos.filter((todo) => todo.completed).length
+  const completedVisibleTodos = visibleTodos.filter((todo) => todo.completed).length
   const completedToday = useMemo(
     () =>
       todos.filter((t) => t.completed && t.completedAt && t.completedAt.slice(0, 10) === todayIso()).length +
@@ -417,11 +439,28 @@ export default function Dashboard() {
     }
   }
 
+  const generateAINudgeMessage = async (character: Character, taskText: string): Promise<string> => {
+    const personaLine = personaHint ? `\n\n${personaHint}` : ""
+    const prompt = `${character.prompt}\n\nThe user "${userInfo.username}" just completed their final task of the day ("${taskText}"). Briefly acknowledge they're done for today, then ask what the ONE thing they want to get done tomorrow is — they can add it right now. 1–2 sentences, under 40 words, in your characteristic style.${personaLine}\n\nWrite like a real person sending a casual text message. Do NOT use any markdown formatting: no asterisks, no bold, no italics, no bullet points, and no dashes for lists. Never use em dashes (—) or en dashes (–); use commas or separate sentences instead. Use plain sentences and emojis only.`
+    try {
+      const r = await fetch("/api/openai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "system", content: prompt }], max_tokens: 120, temperature: 1 }),
+      })
+      const data = await r.json()
+      return humanizeReply(data.choices?.[0]?.message?.content || "") || getNextStepNudge(character)
+    } catch {
+      return getNextStepNudge(character)
+    }
+  }
+
   const handleTaskCompleted = async (
     taskText: string,
     category: string,
     xpGained: number,
     primaryCharacter?: Character,
+    completedTodoId?: number,
   ) => {
     const today = todayIso()
 
@@ -441,7 +480,10 @@ export default function Dashboard() {
     setXpToday(newXpToday)
     setXpTodayDate(today)
 
-    const reactors = primaryCharacter ? [primaryCharacter] : userCompanions
+    // Single reactor: exactly one companion owns each completion. Reactions stay
+    // personal (and cheap) instead of the whole crew piling on.
+    const reactor = primaryCharacter ?? userCompanions[0]
+    const reactors = reactor ? [reactor] : []
     const reactorIds = new Set(reactors.map((r) => r.id))
     const messages = await Promise.all(
       reactors.map(async (c) => ({ c, msg: await generateAITaskMessage(c, taskText, category) })),
@@ -528,6 +570,56 @@ export default function Dashboard() {
         ...celebrations.map((c) => ({ ...c, key: ++celebrationKeyRef.current })),
       ])
     }
+
+    // Planning nudge: when this completion cleared the last open task of the day, the
+    // companion asks for tomorrow's one thing (once per day). `todos` here is the
+    // pre-completion snapshot, so the just-completed todo is excluded by id.
+    const completedTodo = completedTodoId ? todos.find((todo) => todo.id === completedTodoId) : undefined
+    const completedTodaysTask = !completedTodo || isTodoShownOnDate(completedTodo, today, today)
+    const remaining = todos.filter(
+      (todo) => isTodoShownOnDate(todo, today, today) && !todo.completed && todo.id !== completedTodoId,
+    ).length
+    if (completedTodaysTask && remaining === 0 && reactor && lastNudgeDate !== today) {
+      setLastNudgeDate(today)
+      generateAINudgeMessage(reactor, taskText).then((msg) =>
+        setNudge({ character: reactor, message: msg }),
+      )
+    }
+  }
+
+  // One-tap creation of tomorrow's task from the nudge. Tagged `createdVia: "nudge"` so
+  // the planning-loop metric (supabase/metrics.sql) can tell nudged from organic planning.
+  const planTomorrowTask = (text: string) => {
+    if (!nudge) return
+    const character = nudge.character
+    const nudgeMessage = nudge.message
+    setTodos((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        text,
+        completed: false,
+        xp: XP_BY_DIFFICULTY.Easy,
+        category: "General",
+        difficulty: "Easy",
+        assignedCharacterId: character.id,
+        recurrence: "none",
+        dueDate: addDaysIso(todayIso(), 1),
+        createdAt: new Date().toISOString(),
+        createdVia: "nudge",
+      },
+    ])
+    const stamp = Date.now()
+    setChatHistories((prev) => ({
+      ...prev,
+      [character.id]: [
+        ...(prev[character.id] || []),
+        { id: stamp, text: nudgeMessage, sender: "character" as const, timestamp: new Date(), type: "text" as const },
+        { id: stamp + 1, text: `Planned for tomorrow: ${text}`, sender: "user" as const, timestamp: new Date(), type: "system" as const },
+      ].slice(-20),
+    }))
+    playSound("pop")
+    setNudge(null)
   }
 
   const toggleTodo = async (id: number, checkboxEl?: HTMLElement | null) => {
@@ -544,7 +636,7 @@ export default function Dashboard() {
     const assigned = todo.assignedCharacterId
       ? userCompanions.find((c) => c.id === todo.assignedCharacterId)
       : undefined
-    await handleTaskCompleted(todo.text, todo.category, xpGained, assigned)
+    await handleTaskCompleted(todo.text, todo.category, xpGained, assigned, todo.id)
   }
 
   const addTodo = () => {
@@ -563,6 +655,7 @@ export default function Dashboard() {
         difficulty: newTodoDifficulty,
         assignedCharacterId: assignedId,
         recurrence: newTodoRecurrence,
+        dueDate: selectedTaskDate,
         createdAt: new Date().toISOString(),
       },
     ])
@@ -910,6 +1003,15 @@ export default function Dashboard() {
               />
             </div>
 
+            {nudge && (
+              <NextStepNudge
+                character={nudge.character}
+                message={nudge.message}
+                onPlan={planTomorrowTask}
+                onDismiss={() => setNudge(null)}
+              />
+            )}
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 flex-shrink-0">
               <Stat icon={<Zap className="w-5 h-5 text-purple-400" />} label="Total XP" value={totalXP.toString()} hint={xpMultiplier > 1 ? `${xpMultiplier.toFixed(1)}× streak bonus` : undefined} accent="purple" />
               <Stat icon={<Flame className="w-5 h-5 text-orange-400" />} label="Streak" value={`${streakCount}d`} hint={streakCount >= 3 ? "Bonus active" : streakCount === 0 ? "Start one today" : "Keep going"} accent="orange" />
@@ -935,20 +1037,39 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Right: today's tasks */}
+              {/* Right: today/tomorrow tasks */}
               <div className="order-1 lg:order-2 lg:min-h-0 lg:h-full">
                 <Card className="bg-gray-900 border-gray-800 text-white flex flex-col lg:h-full">
                   <CardHeader className="pb-3 flex-shrink-0">
                     <CardTitle className="flex items-center justify-between text-base text-white">
-                      <span>Today's tasks</span>
-                      <Badge variant="secondary" className="bg-gray-800 text-white">{completedTodos}/{todos.length}</Badge>
+                      <span>{taskDay === "today" ? "Today's tasks" : "Tomorrow's tasks"}</span>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="bg-gray-800 text-white mr-1">
+                          {completedVisibleTodos}/{visibleTodos.length}
+                        </Badge>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTaskDay((day) => (day === "today" ? "tomorrow" : "today"))}
+                          aria-label={taskDay === "today" ? "Show tomorrow's tasks" : "Show today's tasks"}
+                          title={taskDay === "today" ? "Tomorrow" : "Today"}
+                          className="h-7 w-7 p-0 text-gray-300 disabled:opacity-25"
+                        >
+                          {taskDay === "today" ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronLeft className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 min-h-0 flex flex-col pt-1">
                     <div className="space-y-2 mb-4 flex-shrink-0">
                       <div className="flex gap-2">
                         <Input
-                          placeholder="Add a task..."
+                          placeholder={`Add a task for ${taskDay}...`}
                           value={newTodo}
                           onChange={(e) => setNewTodo(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && addTodo()}
@@ -1024,13 +1145,13 @@ export default function Dashboard() {
                     </div>
 
                     <div className="flex-1 min-h-0 overflow-y-auto -mr-2 pr-2">
-                    {todos.length === 0 ? (
+                    {visibleTodos.length === 0 ? (
                       <div className="text-center py-8 text-sm text-gray-500">
-                        No tasks yet — add one to get started.
+                        No tasks for {taskDay} yet — add one to get started.
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {todos.map((todo) => (
+                        {visibleTodos.map((todo) => (
                           <div
                             key={todo.id}
                             className={`relative flex items-center gap-3 p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors ${floatingXp?.id === todo.id ? "animate-task-pop" : ""}`}
@@ -1147,7 +1268,7 @@ export default function Dashboard() {
             onUpdateBondLevel={(increment) => updateBondLevel(activeCharacter.id, increment)}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
-            userTasks={todos as any}
+            userTasks={todayTodos as any}
             userPlan={userInfo.plan}
             userInfo={userInfo}
             personaHint={personaHint}
@@ -1164,7 +1285,7 @@ export default function Dashboard() {
         open={focusOpen}
         onOpenChange={setFocusOpen}
         companions={userCompanions}
-        todos={todos}
+        todos={todayTodos}
         onSessionComplete={handleFocusComplete}
         playSound={playSound}
       />

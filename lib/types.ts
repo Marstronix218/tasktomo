@@ -16,6 +16,8 @@ export interface Todo {
   dueDate?: string
   createdAt?: string
   completedAt?: string
+  /** How the task was created — "nudge" = one-tap from the companion's next-step nudge. */
+  createdVia?: "nudge"
 }
 
 export interface Character {

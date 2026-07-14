@@ -15,6 +15,8 @@ export function todosToTaskData(items: Todo[]): TaskData[] {
     difficulty: todo.difficulty,
     recurrence: todo.recurrence || "none",
     assigned_character_id: todo.assignedCharacterId,
+    due_date: todo.dueDate,
+    created_via: todo.createdVia,
   }))
 }
 
@@ -32,8 +34,10 @@ export function tasksToTodos(tasks: TaskData[] | undefined): Todo[] {
       difficulty,
       assignedCharacterId: task.assigned_character_id,
       recurrence: task.recurrence,
+      dueDate: task.due_date,
       createdAt: task.created_at,
       completedAt: task.completed_at,
+      createdVia: task.created_via,
     }
   })
 }

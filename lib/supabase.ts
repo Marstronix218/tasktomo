@@ -24,6 +24,9 @@ export interface TaskData {
   difficulty?: "Easy" | "Medium" | "Hard"
   recurrence?: "none" | "daily" | "weekly"
   assigned_character_id?: number
+  due_date?: string
+  /** "nudge" when created via the companion's next-step nudge (planning-loop metric). */
+  created_via?: "nudge"
 }
 
 export interface CustomCharacter {

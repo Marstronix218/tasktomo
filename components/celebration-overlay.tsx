@@ -2,10 +2,13 @@
 
 import { useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import { fireConfettiBurst } from "@/lib/confetti"
 import type { Celebration } from "@/lib/celebrations"
 import type { SoundName } from "@/hooks/use-sound"
+
+// Non-blocking celebration toast. Celebrations must never own the completion
+// moment — the companion reaction does. This auto-dismisses and never blocks input.
+const AUTO_DISMISS_MS = 3500
 
 interface CelebrationOverlayProps {
   celebration: (Celebration & { key: number }) | null
@@ -33,7 +36,9 @@ export default function CelebrationOverlay({ celebration, onDismiss, playSound }
     if (!celebration) return
     fireConfettiBurst()
     playSound(celebration.kind === "user-level" ? "levelup" : "celebrate")
-    // Re-run for each distinct celebration (key changes per queued item).
+    // Auto-advance the queue; each distinct celebration (key changes) restarts the timer.
+    const t = setTimeout(onDismiss, AUTO_DISMISS_MS)
+    return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [celebration?.key])
 
@@ -41,32 +46,24 @@ export default function CelebrationOverlay({ celebration, onDismiss, playSound }
   const { title, sub } = headline(celebration)
 
   return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
-      onClick={onDismiss}
-      role="presentation"
-    >
+    <div className="fixed bottom-6 inset-x-0 z-[60] flex justify-center px-4 pointer-events-none">
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="celebration-title"
-        aria-describedby="celebration-sub"
-        tabIndex={-1}
-        className="w-full max-w-xs bg-gray-900 border border-purple-500/40 rounded-2xl p-6 text-center animate-in zoom-in-95 fade-in duration-300"
-        onClick={(e) => e.stopPropagation()}
+        role="status"
+        aria-live="polite"
+        onClick={onDismiss}
+        className="pointer-events-auto cursor-pointer w-full max-w-sm bg-gray-900/95 border border-purple-500/40 rounded-xl px-4 py-3 shadow-lg flex items-center gap-3 animate-in slide-in-from-bottom-4 fade-in duration-300"
       >
         {celebration.character && (
-          <Avatar className="w-16 h-16 mx-auto mb-3 ring-2 ring-purple-500/50">
+          <Avatar className="w-10 h-10 ring-2 ring-purple-500/50 flex-shrink-0">
             <AvatarImage src={celebration.character.avatar} />
             <AvatarFallback>{celebration.character.name[0]}</AvatarFallback>
           </Avatar>
         )}
-        <h2 id="celebration-title" className="text-lg font-bold text-white">{title}</h2>
-        <p id="celebration-sub" className="text-sm text-gray-400 mt-1">{sub}</p>
-        <p className="text-purple-300 font-semibold text-sm mt-3">+{celebration.xpGained} XP</p>
-        <Button onClick={onDismiss} className="w-full mt-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-90">
-          Continue
-        </Button>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white truncate">{title}</p>
+          <p className="text-xs text-gray-400 truncate">{sub}</p>
+        </div>
+        <span className="text-purple-300 font-semibold text-sm flex-shrink-0">+{celebration.xpGained} XP</span>
       </div>
     </div>
   )

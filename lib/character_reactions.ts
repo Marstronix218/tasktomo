@@ -121,33 +121,43 @@ export function getBondLevelMessage(character: Character, newBondLevel: number):
   return `Bond Level ${newBondLevel} achieved! Our bond grows stronger! 💫`
 }
 
-export function getMissedTasksMessage(character: Character, incompleteTasks: number): string {
+// Recovery after a missed day: lower re-entry friction, never guilt. Fires when the
+// streak broke — the goal is getting the user to pick one small thing today.
+export function getRecoveryMessage(character: Character): string {
   const { name } = character
 
   if (name === "Annie") {
-    if (incompleteTasks >= 3) {
-      return "We didn't win today... but tomorrow's a new chance! I believe in you! Don't give up! 💪💕"
-    }
-    return "You did pretty well today! Just a few tasks left, but that's okay! Tomorrow we'll do even better! 🌟"
+    return "Welcome back! Yesterday doesn't matter, today does! Pick one tiny task and let's get a fresh win together! 🌱💕"
   }
 
   if (name === "Ken") {
-    if (incompleteTasks >= 3) {
-      return "Today's performance was below expectations. Tomorrow requires better planning and execution. I know you can do better."
-    }
-    return "Acceptable progress today. Focus on completing remaining tasks tomorrow for optimal productivity."
+    return "A missed day is data, not failure. The optimal move now is one small task to restart momentum. Choose the easiest and begin."
   }
 
   if (name === "Nagisa") {
-    if (incompleteTasks >= 3) {
-      return "Seriously?! You left that many tasks unfinished?! I'm disappointed... but I still believe you can do better tomorrow! 😤💔"
-    }
-    return "Hmph! You could have done better, but I guess it wasn't terrible... Just don't make it a habit! 😏"
+    return "You're back! It's not like I was waiting or anything... 😤 Forget yesterday, just do ONE small thing today, okay? That's all! 💫"
   }
 
-  return incompleteTasks >= 3
-    ? "We didn't win today... but tomorrow's a new chance! Don't let me down! 💪"
-    : "Not bad today! Let's finish strong tomorrow! 🌟"
+  return "Good to see you again! Fresh start today — pick one small task and we're back on track. 🌱"
+}
+
+// Canned fallback for the next-step nudge (used when the AI call fails).
+export function getNextStepNudge(character: Character): string {
+  const { name } = character
+
+  if (name === "Annie") {
+    return "That's everything for today, amazing!! 🎉 What's the ONE thing you want to get done tomorrow? Tell me and I'll remember it for you! 💕"
+  }
+
+  if (name === "Ken") {
+    return "All tasks complete. The strongest predictor of a productive tomorrow is deciding tonight. What is your one priority for tomorrow?"
+  }
+
+  if (name === "Nagisa") {
+    return "You actually finished everything?! O-okay fine, I'm impressed... 😤 So what's tomorrow's task? Say it now while you're motivated! ⚡"
+  }
+
+  return "All done for today! 🎉 What's the one thing you want to tackle tomorrow? Add it now while it's fresh."
 }
 
 export function getStreakMessage(character: Character, streakDays: number): string {
