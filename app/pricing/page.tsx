@@ -28,7 +28,6 @@ const PREMIUM_FEATURES = [
 
 export default function PricingPage() {
   const monthlyPrice = STRIPE_PLANS.monthly.amountCents / 100
-  const yearlyPrice = STRIPE_PLANS.yearly.amountCents / 100
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -80,7 +79,6 @@ export default function PricingPage() {
                   <span className="text-4xl font-bold">${monthlyPrice}</span>
                   <span className="text-purple-900 text-sm"> / month</span>
                 </div>
-                <p className="text-xs text-purple-800 mt-1">or ${yearlyPrice} / year — save $80</p>
               </div>
               <ul className="space-y-2.5 mb-6">
                 {PREMIUM_FEATURES.map((f) => (
@@ -92,13 +90,6 @@ export default function PricingPage() {
               <div className="space-y-2">
                 <Button disabled className="w-full bg-white text-purple-700 opacity-70">
                   Coming soon — ${monthlyPrice} / month
-                </Button>
-                <Button
-                  disabled
-                  variant="outline"
-                  className="w-full border-purple-500/40 bg-transparent text-purple-950 opacity-70"
-                >
-                  Coming soon — ${yearlyPrice} / year
                 </Button>
               </div>
               <p className="text-[11px] text-purple-900/80 mt-4 flex items-center gap-1">
